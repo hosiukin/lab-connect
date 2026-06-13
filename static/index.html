@@ -13,7 +13,7 @@
       <div>
         <p class="eyebrow">EASYCONNECT · SSH JUMP HOST</p>
         <h1>Lab Connect</h1>
-        <p>配置跳板机、部署公钥、诊断连接，并管理后台屏幕共享隧道。</p>
+        <p>配置跳板机、部署公钥、诊断连接，并管理多个后台端口转发。</p>
       </div>
       <div id="platformBadge" class="badge">检测环境中</div>
     </header>
@@ -22,7 +22,7 @@
       <button class="step active" data-panel="profile">1. 连接信息</button>
       <button class="step" data-panel="keys">2. 公钥认证</button>
       <button class="step" data-panel="diagnostics">3. 诊断</button>
-      <button class="step" data-panel="tunnel">4. 屏幕共享</button>
+      <button class="step" data-panel="tunnel">4. 端口转发</button>
     </nav>
 
     <section id="profile" class="panel active">
@@ -38,15 +38,6 @@
         <label>目标电脑内网 IP<input name="target_host" required></label>
         <label>目标电脑 SSH 端口<input name="target_port" type="number" min="1" max="65535" required></label>
         <label>目标电脑用户名<input name="target_user" required></label>
-        <label>本地转发端口<input name="local_port" type="number" min="1" max="65535" required></label>
-        <label>远端服务
-          <select name="service">
-            <option value="screen-sharing">macOS 屏幕共享 / VNC</option>
-            <option value="ssh-only">仅 SSH（无屏幕共享）</option>
-            <option value="custom">自定义 TCP 服务</option>
-          </select>
-        </label>
-        <label>远端服务端口<input name="remote_service_port" type="number" min="1" max="65535" required></label>
         <label class="wide">SSH 私钥路径<input name="identity_file" required></label>
       </form>
       <div class="actions">
@@ -94,17 +85,37 @@
 
     <section id="tunnel" class="panel">
       <div class="section-title">
-        <div><span>04</span><h2>后台隧道</h2></div>
-        <p id="tunnelDescription">本地端口连接到目标电脑的屏幕共享端口。</p>
+        <div><span>04</span><h2>端口转发</h2></div>
+        <p>所有转发通过目标 SSH Host 建立，可访问目标机上的 localhost 服务。</p>
+      </div>
+      <div class="forward-toolbar">
+        <button id="addForwardButton">添加空白转发</button>
+        <select id="presetForward">
+          <option value="">添加预设…</option>
+          <option value="web">Web 服务 · 8080</option>
+          <option value="jupyter">Jupyter · 8888</option>
+          <option value="vllm">vLLM API · 8000</option>
+          <option value="vnc">VNC · 5900</option>
+          <option value="rdp">RDP · 3389</option>
+        </select>
+      </div>
+      <div class="forward-head">
+        <span>名称</span><span>本地端口</span><span>目标侧地址</span><span>远端端口</span><span>打开方式</span><span></span>
+      </div>
+      <div id="forwardRows" class="forward-rows"></div>
+      <div class="notice">
+        例如 Spark 的 Web 服务：本地端口 <code>18080</code>，
+        目标侧地址 <code>127.0.0.1</code>，远端端口 <code>8080</code>。
+        启动后浏览器访问 <code>http://127.0.0.1:18080</code>。
       </div>
       <div class="tunnel-state">
         <span id="stateDot" class="state-dot"></span>
         <div><strong id="stateText">正在检查</strong><small id="stateDetail"></small></div>
       </div>
+      <div id="endpointList" class="endpoint-list"></div>
       <div class="actions">
-        <button id="startButton" class="primary">启动后台隧道</button>
-        <button id="openButton">打开屏幕共享</button>
-        <button id="stopButton" class="danger">关闭隧道</button>
+        <button id="startButton" class="primary">保存并启动全部转发</button>
+        <button id="stopButton" class="danger">关闭全部转发</button>
         <button id="statusButton">刷新状态</button>
       </div>
     </section>

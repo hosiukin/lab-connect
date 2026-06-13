@@ -18,8 +18,8 @@ class ConfigTests(unittest.TestCase):
                 "local_port": 15901,
             }
         )
-        self.assertEqual(config["remote_service_port"], 5900)
         self.assertEqual(config["target_port"], 22)
+        self.assertEqual(config["forwards"][0]["remote_port"], 5900)
 
     def test_rejects_bad_profile_name(self):
         with self.assertRaises(ValueError):
@@ -47,7 +47,7 @@ class ConfigTests(unittest.TestCase):
         self.assertIn("Host lab-mac-jump", text)
         self.assertIn("ProxyJump lab-mac-jump", text)
 
-    def test_ssh_only_profile_keeps_standard_ports(self):
+    def test_ssh_only_profile_has_no_forwards(self):
         config = lab_connect.validate_config(
             {
                 "profile_name": "spark",
@@ -59,8 +59,82 @@ class ConfigTests(unittest.TestCase):
                 "remote_service_port": 22,
             }
         )
-        self.assertEqual(config["service"], "ssh-only")
-        self.assertEqual(config["remote_service_port"], 22)
+        self.assertEqual(config["forwards"], [])
+
+    def test_multiple_forwards_generate_target_ssh_command(self):
+        config = lab_connect.validate_config(
+            {
+                "profile_name": "spark",
+                "jump_host": "192.0.2.10",
+                "jump_user": "jump",
+                "target_host": "198.51.100.25",
+                "target_user": "target",
+                "forwards": [
+                    {
+                        "name": "Web",
+                        "local_port": 18080,
+                        "remote_host": "127.0.0.1",
+                        "remote_port": 8080,
+                        "open_mode": "browser",
+                    },
+                    {
+                        "name": "Jupyter",
+                        "local_port": 18888,
+                        "remote_host": "127.0.0.1",
+                        "remote_port": 8888,
+                        "open_mode": "browser",
+                    },
+                ],
+            }
+        )
+        with mock.patch.object(lab_connect, "executable", return_value="ssh"):
+            command = lab_connect.tunnel_command(config)
+        self.assertIn("127.0.0.1:18080:127.0.0.1:8080", command)
+        self.assertIn("127.0.0.1:18888:127.0.0.1:8888", command)
+        self.assertEqual(command[-1], "spark")
+
+    def test_duplicate_local_ports_are_rejected(self):
+        with self.assertRaisesRegex(ValueError, "used by more than one"):
+            lab_connect.validate_config(
+                {
+                    "profile_name": "spark",
+                    "jump_host": "192.0.2.10",
+                    "jump_user": "jump",
+                    "target_host": "198.51.100.25",
+                    "target_user": "target",
+                    "forwards": [
+                        {
+                            "name": "One",
+                            "local_port": 18080,
+                            "remote_port": 8080,
+                        },
+                        {
+                            "name": "Two",
+                            "local_port": 18080,
+                            "remote_port": 8888,
+                        },
+                    ],
+                }
+            )
+
+    def test_load_config_migrates_legacy_service(self):
+        with tempfile.TemporaryDirectory() as folder:
+            config_file = Path(folder) / "config.json"
+            config_file.write_text(
+                """
+                {
+                  "profile_name": "legacy",
+                  "service": "custom",
+                  "local_port": 18080,
+                  "remote_service_port": 8080
+                }
+                """,
+                encoding="utf-8",
+            )
+            with mock.patch.object(lab_connect, "CONFIG_FILE", config_file):
+                config = lab_connect.load_config()
+        self.assertEqual(config["forwards"][0]["local_port"], 18080)
+        self.assertEqual(config["forwards"][0]["remote_port"], 8080)
 
     def test_redacts_passwords(self):
         text = lab_connect.redact(

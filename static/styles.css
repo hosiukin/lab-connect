@@ -111,6 +111,20 @@ button:disabled { opacity: .55; cursor: wait; }
 .card button { margin-top: 14px; }
 .notice { margin-top: 16px; padding: 12px 14px; border-left: 3px solid var(--green); background: #edf7f4; color: #3e514c; }
 
+.forward-toolbar { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 14px; }
+.forward-toolbar select { width: auto; min-width: 190px; }
+.forward-head, .forward-row {
+  display: grid;
+  grid-template-columns: 1.25fr .75fr 1fr .75fr .9fr auto;
+  gap: 8px;
+  align-items: center;
+}
+.forward-head { padding: 0 4px 7px; color: var(--muted); font-size: 12px; font-weight: 700; }
+.forward-rows { display: grid; gap: 8px; }
+.forward-row { padding: 10px; border: 1px solid var(--line); border-radius: 10px; background: white; }
+.forward-row input, .forward-row select { min-width: 0; padding: 9px 10px; }
+.remove-forward { padding: 9px 10px; }
+
 .checks { display: grid; gap: 10px; margin-top: 20px; }
 .checks.empty { color: var(--muted); }
 .check { padding: 14px; border: 1px solid var(--line); border-radius: 10px; background: white; }
@@ -123,6 +137,10 @@ button:disabled { opacity: .55; cursor: wait; }
 .tunnel-state small { color: var(--muted); }
 .state-dot { width: 13px; height: 13px; border-radius: 50%; background: #a6aaa8; box-shadow: 0 0 0 6px rgba(166,170,168,.16); }
 .state-dot.online { background: #13a47b; box-shadow: 0 0 0 6px rgba(19,164,123,.16); }
+.endpoint-list { display: grid; gap: 8px; margin-top: 12px; }
+.endpoint { display: flex; justify-content: space-between; align-items: center; gap: 14px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 10px; background: white; }
+.endpoint > div { display: grid; gap: 4px; min-width: 0; }
+.endpoint code { color: var(--muted); overflow-wrap: anywhere; }
 
 .console-wrap { margin-top: 16px; border-radius: 14px; overflow: hidden; background: #17211f; box-shadow: var(--shadow); }
 .console-title { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; color: #c9d5d1; border-bottom: 1px solid #32413d; }
@@ -138,4 +156,8 @@ button:disabled { opacity: .55; cursor: wait; }
   .panel { border-radius: 14px; padding: 20px; }
   .grid, .card-row { grid-template-columns: 1fr; }
   .wide { grid-column: auto; }
+  .forward-head { display: none; }
+  .forward-row { grid-template-columns: 1fr 1fr; }
+  .forward-row [data-field="name"], .forward-row [data-field="remote_host"] { grid-column: 1 / -1; }
+  .endpoint { align-items: flex-start; flex-direction: column; }
 }

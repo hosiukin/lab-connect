@@ -71,9 +71,15 @@ def default_config() -> dict:
         "target_host": "",
         "target_port": 22,
         "target_user": "",
-        "service": "screen-sharing",
-        "remote_service_port": 5900,
-        "local_port": 15901,
+        "forwards": [
+            {
+                "name": "Screen Sharing",
+                "local_port": 15901,
+                "remote_host": "127.0.0.1",
+                "remote_port": 5900,
+                "open_mode": "vnc",
+            }
+        ],
         "identity_file": str(DEFAULT_IDENTITY),
     }
 
@@ -85,6 +91,20 @@ def load_config() -> dict:
             stored = json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
             if isinstance(stored, dict):
                 config.update(stored)
+                if "forwards" not in stored:
+                    service = stored.get("service", "screen-sharing")
+                    if service == "ssh-only":
+                        config["forwards"] = []
+                    else:
+                        config["forwards"] = [
+                            {
+                                "name": "Screen Sharing" if service == "screen-sharing" else "Custom service",
+                                "local_port": int(stored.get("local_port", 15901)),
+                                "remote_host": "127.0.0.1",
+                                "remote_port": int(stored.get("remote_service_port", 5900)),
+                                "open_mode": "vnc" if service == "screen-sharing" else "browser",
+                            }
+                        ]
         except (OSError, json.JSONDecodeError) as exc:
             log(f"Failed to read config: {exc}")
     return config
@@ -98,13 +118,12 @@ def validate_config(raw: dict) -> dict:
         "jump_user",
         "target_host",
         "target_user",
-        "service",
         "identity_file",
     )
     for key in allowed_text:
         if key in raw:
             config[key] = str(raw[key]).strip()
-    for key in ("jump_port", "target_port", "remote_service_port", "local_port"):
+    for key in ("jump_port", "target_port"):
         if key in raw:
             config[key] = int(raw[key])
         if not 1 <= config[key] <= 65535:
@@ -116,6 +135,52 @@ def validate_config(raw: dict) -> dict:
             raise ValueError(f"{key} is required and cannot contain spaces")
     identity = Path(os.path.expandvars(os.path.expanduser(config["identity_file"])))
     config["identity_file"] = str(identity)
+    raw_forwards = raw.get("forwards")
+    if raw_forwards is None:
+        service = str(raw.get("service", "screen-sharing"))
+        if service == "ssh-only":
+            raw_forwards = []
+        else:
+            raw_forwards = [
+                {
+                    "name": "Screen Sharing" if service == "screen-sharing" else "Custom service",
+                    "local_port": raw.get("local_port", 15901),
+                    "remote_host": "127.0.0.1",
+                    "remote_port": raw.get("remote_service_port", 5900),
+                    "open_mode": "vnc" if service == "screen-sharing" else "browser",
+                }
+            ]
+    if not isinstance(raw_forwards, list):
+        raise ValueError("forwards must be a list")
+    forwards = []
+    local_ports: set[int] = set()
+    for index, item in enumerate(raw_forwards):
+        if not isinstance(item, dict):
+            raise ValueError(f"Forward #{index + 1} must be an object")
+        name = str(item.get("name", "")).strip() or f"Forward {index + 1}"
+        local_port = int(item.get("local_port", 0))
+        remote_port = int(item.get("remote_port", 0))
+        remote_host = str(item.get("remote_host", "127.0.0.1")).strip()
+        open_mode = str(item.get("open_mode", "browser")).strip()
+        if not 1 <= local_port <= 65535 or not 1 <= remote_port <= 65535:
+            raise ValueError(f"Forward '{name}' ports must be between 1 and 65535")
+        if local_port in local_ports:
+            raise ValueError(f"Local port {local_port} is used by more than one forward")
+        if not remote_host or any(char.isspace() for char in remote_host):
+            raise ValueError(f"Forward '{name}' has an invalid remote host")
+        if open_mode not in {"browser", "vnc", "rdp", "none"}:
+            raise ValueError(f"Forward '{name}' has an invalid open mode")
+        local_ports.add(local_port)
+        forwards.append(
+            {
+                "name": name,
+                "local_port": local_port,
+                "remote_host": remote_host,
+                "remote_port": remote_port,
+                "open_mode": open_mode,
+            }
+        )
+    config["forwards"] = forwards
     return config
 
 
@@ -353,12 +418,26 @@ def shell_quote(value: str) -> str:
 def control_path(config: dict) -> Path:
     safe = re.sub(r"[^A-Za-z0-9_.-]", "_", config["profile_name"])
     suffix = ".ctl" if not IS_WINDOWS else ".pid"
+    return APP_DIR / f"{safe}-tunnels{suffix}"
+
+
+def legacy_control_path(config: dict) -> Path:
+    safe = re.sub(r"[^A-Za-z0-9_.-]", "_", config["profile_name"])
+    suffix = ".ctl" if not IS_WINDOWS else ".pid"
     return APP_DIR / f"{safe}-screen{suffix}"
 
 
+def active_control_path(config: dict) -> tuple[Path, bool]:
+    current = control_path(config)
+    legacy = legacy_control_path(config)
+    if not current.exists() and legacy.exists():
+        return legacy, True
+    return current, False
+
+
 def tunnel_command(config: dict) -> list[str]:
-    jump_alias, _ = ssh_aliases(config)
-    return [
+    _, target_alias = ssh_aliases(config)
+    command = [
         executable("ssh"),
         "-NT",
         "-o",
@@ -369,17 +448,37 @@ def tunnel_command(config: dict) -> list[str]:
         "ServerAliveInterval=60",
         "-o",
         "ServerAliveCountMax=3",
-        "-L",
-        f"127.0.0.1:{config['local_port']}:{config['target_host']}:{config['remote_service_port']}",
-        jump_alias,
     ]
+    for forward in config["forwards"]:
+        command.extend(
+            [
+                "-L",
+                f"127.0.0.1:{forward['local_port']}:{forward['remote_host']}:{forward['remote_port']}",
+            ]
+        )
+    command.append(target_alias)
+    return command
 
 
 def tunnel_status(config: dict) -> dict:
-    marker = control_path(config)
+    marker, legacy = active_control_path(config)
+    endpoints = [
+        {
+            **forward,
+            "endpoint": f"127.0.0.1:{forward['local_port']}",
+        }
+        for forward in config["forwards"]
+    ]
     if IS_WINDOWS:
         if not marker.exists():
-            return {"ok": False, "running": False, "output": "Tunnel is stopped."}
+            return {
+                "ok": False,
+                "running": False,
+                "legacy": False,
+                "output": "Tunnel is stopped.",
+                "endpoints": endpoints,
+            }
+        pid = None
         try:
             pid = int(marker.read_text(encoding="ascii").strip())
             result = subprocess.run(
@@ -396,40 +495,54 @@ def tunnel_status(config: dict) -> dict:
         return {
             "ok": running,
             "running": running,
+            "legacy": legacy and running,
             "output": f"Tunnel {'is running' if running else 'is stopped'}"
             + (f" (PID {pid})." if running else "."),
+            "endpoints": endpoints,
         }
-    jump_alias, _ = ssh_aliases(config)
+    jump_alias, target_alias = ssh_aliases(config)
+    control_alias = jump_alias if legacy else target_alias
     result = run(
-        [executable("ssh"), "-S", str(marker), "-O", "check", jump_alias],
+        [executable("ssh"), "-S", str(marker), "-O", "check", control_alias],
         timeout=5,
     )
     return {
         "ok": result["ok"],
         "running": result["ok"],
+        "legacy": legacy and result["ok"],
         "output": result["output"] or ("Tunnel is running." if result["ok"] else "Tunnel is stopped."),
+        "endpoints": endpoints,
     }
 
 
 def start_tunnel(config: dict) -> dict:
-    if config["service"] == "ssh-only":
+    if not config["forwards"]:
         _, target_alias = ssh_aliases(config)
         return {
             "ok": False,
             "running": False,
-            "output": f"SSH-only mode does not need a service tunnel. Connect with: ssh {target_alias}",
+            "output": f"No port forwards are configured. SSH is ready: ssh {target_alias}",
+            "endpoints": [],
         }
     install_ssh_config(config)
     current = tunnel_status(config)
     if current["running"]:
-        return current
-    local_check = tcp_check("127.0.0.1", config["local_port"], timeout=0.4)
-    if local_check["ok"]:
-        return {
-            "ok": False,
-            "running": False,
-            "output": f"Local port {config['local_port']} is already in use.",
-        }
+        stopped = stop_tunnel(config)
+        if not stopped["ok"]:
+            return {
+                **stopped,
+                "running": True,
+                "output": "The existing tunnel could not be restarted.\n" + stopped.get("output", ""),
+            }
+    for forward in config["forwards"]:
+        local_check = tcp_check("127.0.0.1", forward["local_port"], timeout=0.4)
+        if local_check["ok"]:
+            return {
+                "ok": False,
+                "running": False,
+                "output": f"Local port {forward['local_port']} for '{forward['name']}' is already in use.",
+                "endpoints": [],
+            }
     marker = control_path(config)
     marker.unlink(missing_ok=True)
     args = tunnel_command(config)
@@ -448,7 +561,7 @@ def start_tunnel(config: dict) -> dict:
         )
         marker.write_text(str(process.pid), encoding="ascii")
     else:
-        jump_alias, _ = ssh_aliases(config)
+        _, target_alias = ssh_aliases(config)
         args = [
             executable("ssh"),
             "-fNT",
@@ -463,10 +576,15 @@ def start_tunnel(config: dict) -> dict:
             "ServerAliveInterval=60",
             "-o",
             "ServerAliveCountMax=3",
-            "-L",
-            f"127.0.0.1:{config['local_port']}:{config['target_host']}:{config['remote_service_port']}",
-            jump_alias,
         ]
+        for forward in config["forwards"]:
+            args.extend(
+                [
+                    "-L",
+                    f"127.0.0.1:{forward['local_port']}:{forward['remote_host']}:{forward['remote_port']}",
+                ]
+            )
+        args.append(target_alias)
         result = run(args, timeout=25)
         if not result["ok"]:
             return {**result, "running": False}
@@ -475,7 +593,7 @@ def start_tunnel(config: dict) -> dict:
 
 
 def stop_tunnel(config: dict) -> dict:
-    marker = control_path(config)
+    marker, legacy = active_control_path(config)
     if IS_WINDOWS:
         status = tunnel_status(config)
         if not status["running"]:
@@ -484,25 +602,26 @@ def stop_tunnel(config: dict) -> dict:
         result = run(["taskkill", "/PID", pid, "/T", "/F"], timeout=10)
         marker.unlink(missing_ok=True)
         return {**result, "running": False}
-    jump_alias, _ = ssh_aliases(config)
+    jump_alias, target_alias = ssh_aliases(config)
+    control_alias = jump_alias if legacy else target_alias
     result = run(
-        [executable("ssh"), "-S", str(marker), "-O", "exit", jump_alias],
+        [executable("ssh"), "-S", str(marker), "-O", "exit", control_alias],
         timeout=10,
     )
     marker.unlink(missing_ok=True)
     return {**result, "running": False}
 
 
-def open_client(config: dict) -> dict:
-    address = f"127.0.0.1:{config['local_port']}"
-    system = platform.system()
-    if config["service"] == "ssh-only":
+def open_client(config: dict, forward_index: int = 0) -> dict:
+    if not config["forwards"]:
         _, target_alias = ssh_aliases(config)
-        return {
-            "ok": True,
-            "output": f"SSH-only profile is ready. Connect with: ssh {target_alias}",
-        }
-    if config["service"] == "screen-sharing":
+        return {"ok": True, "output": f"No port forward is configured. Connect with: ssh {target_alias}"}
+    if not 0 <= forward_index < len(config["forwards"]):
+        raise ValueError("Invalid port-forward index")
+    forward = config["forwards"][forward_index]
+    address = f"127.0.0.1:{forward['local_port']}"
+    system = platform.system()
+    if forward["open_mode"] == "vnc":
         if system == "Darwin":
             subprocess.Popen(["open", f"vnc://{address}"])
             return {"ok": True, "output": f"Opened Screen Sharing at vnc://{address}"}
@@ -516,6 +635,15 @@ def open_client(config: dict) -> dict:
                 "output": "Tunnel is ready, but no VNC viewer was found. Install a VNC client and connect to "
                 + address,
             }
+    if forward["open_mode"] == "rdp":
+        if system == "Windows":
+            subprocess.Popen(["mstsc", f"/v:{address}"])
+            return {"ok": True, "output": f"Opened Remote Desktop at {address}"}
+        return {"ok": True, "output": f"Open an RDP client and connect to {address}"}
+    if forward["open_mode"] == "browser":
+        url = f"http://{address}"
+        webbrowser.open(url)
+        return {"ok": True, "output": f"Opened {url}"}
     return {"ok": True, "output": f"Tunnel endpoint: {address}"}
 
 
@@ -568,42 +696,41 @@ def diagnose(config: dict) -> list[dict]:
             ),
         }
     )
-    if config["service"] == "ssh-only":
+    if not config["forwards"]:
         checks.append(
             {
-                "name": "Remote service",
+                "name": "Port forwards",
                 "ok": True,
-                "output": "SSH-only mode: target SSH connectivity already passed; no additional service port was tested.",
+                "output": "No port forwards are configured. Target SSH connectivity already passed.",
             }
         )
     else:
-        remote_check_command = (
-            f"python3 -c \"import socket;s=socket.create_connection("
-            f"('{config['target_host']}',{config['remote_service_port']}),5);s.close()\""
-        )
-        remote_result = run(
-            [
-                executable("ssh"),
-                "-o",
-                "BatchMode=yes",
-                "-o",
-                "ConnectTimeout=12",
-                jump_alias,
-                remote_check_command,
-            ],
-            timeout=20,
-        )
-        if not remote_result["ok"] and config["service"] == "screen-sharing":
-            remote_result["output"] = (
-                f"Screen Sharing port {config['remote_service_port']} is not reachable on "
-                f"{config['target_host']}.\n\n"
-                "SSH connectivity succeeded, so the jump-host route is working. Check that:\n"
-                "1. The target IP belongs to the Mac you want to control, not a Linux/Spark host.\n"
-                "2. Screen Sharing or Remote Management is enabled on that Mac.\n"
-                "3. The Mac firewall permits Screen Sharing.\n\n"
-                f"Technical output:\n{remote_result['output']}"
+        for forward in config["forwards"]:
+            remote_check_command = (
+                f"python3 -c \"import socket;s=socket.create_connection("
+                f"('{forward['remote_host']}',{forward['remote_port']}),5);s.close()\""
             )
-        checks.append({"name": "Remote service from jump host", **remote_result})
+            remote_result = run(
+                [
+                    executable("ssh"),
+                    "-o",
+                    "BatchMode=yes",
+                    "-o",
+                    "ConnectTimeout=15",
+                    target_alias,
+                    remote_check_command,
+                ],
+                timeout=22,
+            )
+            if not remote_result["ok"]:
+                remote_result["output"] = (
+                    f"'{forward['name']}' is not reachable from the target computer at "
+                    f"{forward['remote_host']}:{forward['remote_port']}.\n"
+                    "SSH connectivity succeeded. Check that the application is running and "
+                    "listening on the configured host and port.\n\n"
+                    f"Technical output:\n{remote_result['output']}"
+                )
+            checks.append({"name": f"Forward: {forward['name']}", **remote_result})
     log("Diagnostic completed")
     return checks
 
@@ -727,7 +854,7 @@ class AppHandler(BaseHTTPRequestHandler):
             elif path == "/api/tunnel/status":
                 result = tunnel_status(config)
             elif path == "/api/client/open":
-                result = open_client(config)
+                result = open_client(config, int(payload.get("forward_index", 0)))
             else:
                 self.send_error(HTTPStatus.NOT_FOUND)
                 return

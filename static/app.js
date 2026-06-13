@@ -10,9 +10,16 @@ function write(message, kind = "info") {
 
 function configFromForm() {
   const data = Object.fromEntries(new FormData(form).entries());
-  for (const key of ["jump_port", "target_port", "local_port", "remote_service_port"]) {
+  for (const key of ["jump_port", "target_port"]) {
     data[key] = Number(data[key]);
   }
+  data.forwards = [...document.querySelectorAll(".forward-row")].map((row) => ({
+    name: row.querySelector('[data-field="name"]').value.trim(),
+    local_port: Number(row.querySelector('[data-field="local_port"]').value),
+    remote_host: row.querySelector('[data-field="remote_host"]').value.trim(),
+    remote_port: Number(row.querySelector('[data-field="remote_port"]').value),
+    open_mode: row.querySelector('[data-field="open_mode"]').value,
+  }));
   return data;
 }
 
@@ -49,32 +56,56 @@ function fillForm(config) {
     const field = form.elements.namedItem(key);
     if (field) field.value = value;
   }
-  updateServiceFields();
+  renderForwards(config.forwards || []);
 }
 
-function updateServiceFields() {
-  const service = form.elements.namedItem("service").value;
-  const remotePort = form.elements.namedItem("remote_service_port");
-  const localPort = form.elements.namedItem("local_port");
-  const sshOnly = service === "ssh-only";
-  remotePort.readOnly = sshOnly;
-  localPort.readOnly = sshOnly;
-  document.getElementById("startButton").disabled = sshOnly;
-  document.getElementById("stopButton").disabled = sshOnly;
-  document.getElementById("openButton").textContent = sshOnly ? "显示 SSH 命令" : "打开屏幕共享";
-  document.getElementById("tunnelDescription").textContent = sshOnly
-    ? "仅 SSH 模式不需要额外的本地服务隧道。"
-    : "本地端口连接到目标电脑的屏幕共享端口。";
-}
-
-form.elements.namedItem("service").addEventListener("change", (event) => {
-  const service = event.target.value;
-  if (service === "screen-sharing") {
-    form.elements.namedItem("remote_service_port").value = 5900;
-  } else if (service === "ssh-only") {
-    form.elements.namedItem("remote_service_port").value = 22;
+function addForward(forward = {}) {
+  const row = document.createElement("div");
+  row.className = "forward-row";
+  row.innerHTML = `
+    <input data-field="name" aria-label="名称" placeholder="Web 8080">
+    <input data-field="local_port" aria-label="本地端口" type="number" min="1" max="65535" placeholder="18080">
+    <input data-field="remote_host" aria-label="目标侧地址" placeholder="127.0.0.1">
+    <input data-field="remote_port" aria-label="远端端口" type="number" min="1" max="65535" placeholder="8080">
+    <select data-field="open_mode" aria-label="打开方式">
+      <option value="browser">浏览器</option>
+      <option value="vnc">VNC</option>
+      <option value="rdp">RDP</option>
+      <option value="none">仅转发</option>
+    </select>
+    <button type="button" class="remove-forward danger" aria-label="删除">删除</button>
+  `;
+  for (const [key, value] of Object.entries({
+    name: forward.name || "",
+    local_port: forward.local_port || "",
+    remote_host: forward.remote_host || "127.0.0.1",
+    remote_port: forward.remote_port || "",
+    open_mode: forward.open_mode || "browser",
+  })) {
+    row.querySelector(`[data-field="${key}"]`).value = value;
   }
-  updateServiceFields();
+  row.querySelector(".remove-forward").addEventListener("click", () => row.remove());
+  document.getElementById("forwardRows").append(row);
+}
+
+function renderForwards(forwards) {
+  const rows = document.getElementById("forwardRows");
+  rows.innerHTML = "";
+  forwards.forEach(addForward);
+}
+
+const forwardPresets = {
+  web: { name: "Web 8080", local_port: 18080, remote_host: "127.0.0.1", remote_port: 8080, open_mode: "browser" },
+  jupyter: { name: "Jupyter", local_port: 18888, remote_host: "127.0.0.1", remote_port: 8888, open_mode: "browser" },
+  vllm: { name: "vLLM API", local_port: 18000, remote_host: "127.0.0.1", remote_port: 8000, open_mode: "browser" },
+  vnc: { name: "Screen Sharing", local_port: 15901, remote_host: "127.0.0.1", remote_port: 5900, open_mode: "vnc" },
+  rdp: { name: "Remote Desktop", local_port: 13389, remote_host: "127.0.0.1", remote_port: 3389, open_mode: "rdp" },
+};
+
+document.getElementById("addForwardButton").addEventListener("click", () => addForward());
+document.getElementById("presetForward").addEventListener("change", (event) => {
+  if (event.target.value) addForward(forwardPresets[event.target.value]);
+  event.target.value = "";
 });
 
 function showTunnel(result) {
@@ -82,6 +113,29 @@ function showTunnel(result) {
   document.getElementById("stateDot").classList.toggle("online", running);
   document.getElementById("stateText").textContent = running ? "隧道运行中" : "隧道已停止";
   document.getElementById("stateDetail").textContent = result.output || "";
+  const list = document.getElementById("endpointList");
+  list.innerHTML = "";
+  for (const [index, endpoint] of (result.endpoints || []).entries()) {
+    const item = document.createElement("div");
+    item.className = "endpoint";
+    const text = document.createElement("div");
+    text.innerHTML = `<strong></strong><code></code>`;
+    text.querySelector("strong").textContent = endpoint.name;
+    text.querySelector("code").textContent =
+      `${endpoint.endpoint} → ${endpoint.remote_host}:${endpoint.remote_port}`;
+    const open = document.createElement("button");
+    open.textContent = endpoint.open_mode === "none" ? "显示地址" : "打开";
+    open.disabled = !running;
+    open.addEventListener("click", () => busy(open, async () => {
+      const response = await api("/api/client/open", {
+        config: configFromForm(),
+        forward_index: index,
+      });
+      write(response.output, response.ok ? "success" : "error");
+    }));
+    item.append(text, open);
+    list.append(item);
+  }
 }
 
 async function refreshState() {
@@ -168,13 +222,6 @@ for (const [buttonId, path] of [
     });
   });
 }
-
-document.getElementById("openButton").addEventListener("click", (event) => {
-  busy(event.currentTarget, async () => {
-    const result = await api("/api/client/open", { config: configFromForm() });
-    write(result.output, result.ok ? "success" : "error");
-  });
-});
 
 document.getElementById("downloadLogs").addEventListener("click", (event) => {
   event.preventDefault();

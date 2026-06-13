@@ -6,15 +6,20 @@ Lab Connect is a local, cross-platform web wizard for connections of the form:
 your computer -> EasyConnect -> SSH jump host -> lab computer
 ```
 
-It configures OpenSSH, deploys public keys, runs diagnostics, manages a
-background TCP tunnel, opens macOS Screen Sharing when available, and records
-redacted diagnostic logs.
+It configures OpenSSH, deploys public keys, runs diagnostics, manages multiple
+background TCP forwards, opens supported local clients, and records redacted
+diagnostic logs.
 
-Choose the service type that matches the target:
+Each profile can have zero or more named port forwards. Examples:
 
-- **macOS Screen Sharing / VNC** for a Mac with Screen Sharing enabled.
-- **SSH only** for Linux servers, Spark nodes, or terminal-only access.
-- **Custom TCP service** for another forwarded port.
+- Web application: local `18080` to target `127.0.0.1:8080`
+- Jupyter: local `18888` to target `127.0.0.1:8888`
+- vLLM API: local `18000` to target `127.0.0.1:8000`
+- macOS Screen Sharing: local `15901` to target `127.0.0.1:5900`
+- RDP: local `13389` to target `127.0.0.1:3389`
+
+All forwards terminate through the target SSH host, not the jump host. This
+means applications may remain bound to `127.0.0.1` on the target computer.
 
 ## Requirements
 
@@ -65,8 +70,8 @@ configuration UI but does not stop an already running SSH tunnel.
 
 ## Connect from PowerShell or VS Code
 
-For a Linux server, Spark node, or another terminal-only target, choose
-**SSH only** in Lab Connect and save the profile.
+For a Linux server, Spark node, or another terminal target, save the profile.
+Port forwards are optional and do not affect normal SSH access.
 
 The value entered in **Profile name** becomes the SSH host alias. For example,
 if the profile name is:
@@ -128,6 +133,43 @@ For VS Code Remote-SSH:
 
 VS Code reads the same generated SSH configuration, so no separate jump-host
 configuration is required.
+
+## Forward web applications and other ports
+
+Open the **Port forwards** page and add one or more rows. Each row contains:
+
+- **Name**: a label such as `Spark Web UI`
+- **Local port**: an unused port on your current computer
+- **Target-side host**: usually `127.0.0.1`
+- **Remote port**: the port used by the application on the target
+- **Open mode**: Browser, VNC, RDP, or forwarding only
+
+For example, to expose Spark port 8080 locally:
+
+```text
+Name: Spark Web UI
+Local port: 18080
+Target-side host: 127.0.0.1
+Remote port: 8080
+Open mode: Browser
+```
+
+Select **Save and start all forwards**, then open:
+
+```text
+http://127.0.0.1:18080
+```
+
+Several ports can share the same SSH connection:
+
+```text
+127.0.0.1:18080 -> target 127.0.0.1:8080
+127.0.0.1:18888 -> target 127.0.0.1:8888
+127.0.0.1:18000 -> target 127.0.0.1:8000
+```
+
+If an application listens on another interface or another machine reachable
+from the target, replace the target-side host accordingly.
 
 ## Security
 
