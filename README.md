@@ -63,6 +63,72 @@ start-windows.bat
 The launcher opens a local browser page. Closing the launcher window stops the
 configuration UI but does not stop an already running SSH tunnel.
 
+## Connect from PowerShell or VS Code
+
+For a Linux server, Spark node, or another terminal-only target, choose
+**SSH only** in Lab Connect and save the profile.
+
+The value entered in **Profile name** becomes the SSH host alias. For example,
+if the profile name is:
+
+```text
+spark
+```
+
+connect from PowerShell, Command Prompt, Windows Terminal, macOS Terminal, or
+Linux with:
+
+```powershell
+ssh spark
+```
+
+Lab Connect generates the equivalent OpenSSH configuration:
+
+```sshconfig
+Host spark-jump
+    HostName <jump-host-address>
+    User <jump-host-user>
+
+Host spark
+    HostName <target-internal-address>
+    User <target-user>
+    ProxyJump spark-jump
+```
+
+OpenSSH will automatically connect through:
+
+```text
+your computer -> EasyConnect -> jump host -> target computer
+```
+
+The standard direct SSH syntax is `user@host`, not `user/host`:
+
+```powershell
+ssh target-user@target-address
+```
+
+However, an internal target that is reachable only through the jump host must
+use either the generated alias:
+
+```powershell
+ssh spark
+```
+
+or an explicit one-time ProxyJump command:
+
+```powershell
+ssh -J jump-user@jump-host target-user@target-address
+```
+
+For VS Code Remote-SSH:
+
+1. Install the **Remote - SSH** extension.
+2. Run **Remote-SSH: Connect to Host...** from the Command Palette.
+3. Select the profile name, such as `spark`.
+
+VS Code reads the same generated SSH configuration, so no separate jump-host
+configuration is required.
+
 ## Security
 
 - Passwords are used only for the current public-key deployment request.
