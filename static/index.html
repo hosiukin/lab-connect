@@ -42,6 +42,7 @@
         <label>远端服务
           <select name="service">
             <option value="screen-sharing">macOS 屏幕共享 / VNC</option>
+            <option value="ssh-only">仅 SSH（无屏幕共享）</option>
             <option value="custom">自定义 TCP 服务</option>
           </select>
         </label>
@@ -94,7 +95,7 @@
     <section id="tunnel" class="panel">
       <div class="section-title">
         <div><span>04</span><h2>后台隧道</h2></div>
-        <p>本地端口连接到目标电脑的屏幕共享端口。</p>
+        <p id="tunnelDescription">本地端口连接到目标电脑的屏幕共享端口。</p>
       </div>
       <div class="tunnel-state">
         <span id="stateDot" class="state-dot"></span>

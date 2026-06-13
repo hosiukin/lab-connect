@@ -10,6 +10,12 @@ It configures OpenSSH, deploys public keys, runs diagnostics, manages a
 background TCP tunnel, opens macOS Screen Sharing when available, and records
 redacted diagnostic logs.
 
+Choose the service type that matches the target:
+
+- **macOS Screen Sharing / VNC** for a Mac with Screen Sharing enabled.
+- **SSH only** for Linux servers, Spark nodes, or terminal-only access.
+- **Custom TCP service** for another forwarded port.
+
 ## Requirements
 
 - EasyConnect must already be connected.

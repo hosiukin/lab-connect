@@ -47,6 +47,21 @@ class ConfigTests(unittest.TestCase):
         self.assertIn("Host lab-mac-jump", text)
         self.assertIn("ProxyJump lab-mac-jump", text)
 
+    def test_ssh_only_profile_keeps_standard_ports(self):
+        config = lab_connect.validate_config(
+            {
+                "profile_name": "spark",
+                "jump_host": "192.0.2.10",
+                "jump_user": "jump",
+                "target_host": "198.51.100.25",
+                "target_user": "target",
+                "service": "ssh-only",
+                "remote_service_port": 22,
+            }
+        )
+        self.assertEqual(config["service"], "ssh-only")
+        self.assertEqual(config["remote_service_port"], 22)
+
     def test_redacts_passwords(self):
         text = lab_connect.redact(
             "password=hunter2 secret: abc /?token=session-token",

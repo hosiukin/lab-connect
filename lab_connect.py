@@ -412,6 +412,13 @@ def tunnel_status(config: dict) -> dict:
 
 
 def start_tunnel(config: dict) -> dict:
+    if config["service"] == "ssh-only":
+        _, target_alias = ssh_aliases(config)
+        return {
+            "ok": False,
+            "running": False,
+            "output": f"SSH-only mode does not need a service tunnel. Connect with: ssh {target_alias}",
+        }
     install_ssh_config(config)
     current = tunnel_status(config)
     if current["running"]:
@@ -489,6 +496,12 @@ def stop_tunnel(config: dict) -> dict:
 def open_client(config: dict) -> dict:
     address = f"127.0.0.1:{config['local_port']}"
     system = platform.system()
+    if config["service"] == "ssh-only":
+        _, target_alias = ssh_aliases(config)
+        return {
+            "ok": True,
+            "output": f"SSH-only profile is ready. Connect with: ssh {target_alias}",
+        }
     if config["service"] == "screen-sharing":
         if system == "Darwin":
             subprocess.Popen(["open", f"vnc://{address}"])
@@ -555,27 +568,42 @@ def diagnose(config: dict) -> list[dict]:
             ),
         }
     )
-    remote_check_command = (
-        f"python3 -c \"import socket;s=socket.create_connection("
-        f"('{config['target_host']}',{config['remote_service_port']}),5);s.close()\""
-    )
-    checks.append(
-        {
-            "name": "Remote service from jump host",
-            **run(
-                [
-                    executable("ssh"),
-                    "-o",
-                    "BatchMode=yes",
-                    "-o",
-                    "ConnectTimeout=12",
-                    jump_alias,
-                    remote_check_command,
-                ],
-                timeout=20,
-            ),
-        }
-    )
+    if config["service"] == "ssh-only":
+        checks.append(
+            {
+                "name": "Remote service",
+                "ok": True,
+                "output": "SSH-only mode: target SSH connectivity already passed; no additional service port was tested.",
+            }
+        )
+    else:
+        remote_check_command = (
+            f"python3 -c \"import socket;s=socket.create_connection("
+            f"('{config['target_host']}',{config['remote_service_port']}),5);s.close()\""
+        )
+        remote_result = run(
+            [
+                executable("ssh"),
+                "-o",
+                "BatchMode=yes",
+                "-o",
+                "ConnectTimeout=12",
+                jump_alias,
+                remote_check_command,
+            ],
+            timeout=20,
+        )
+        if not remote_result["ok"] and config["service"] == "screen-sharing":
+            remote_result["output"] = (
+                f"Screen Sharing port {config['remote_service_port']} is not reachable on "
+                f"{config['target_host']}.\n\n"
+                "SSH connectivity succeeded, so the jump-host route is working. Check that:\n"
+                "1. The target IP belongs to the Mac you want to control, not a Linux/Spark host.\n"
+                "2. Screen Sharing or Remote Management is enabled on that Mac.\n"
+                "3. The Mac firewall permits Screen Sharing.\n\n"
+                f"Technical output:\n{remote_result['output']}"
+            )
+        checks.append({"name": "Remote service from jump host", **remote_result})
     log("Diagnostic completed")
     return checks
 

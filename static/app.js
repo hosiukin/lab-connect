@@ -49,7 +49,33 @@ function fillForm(config) {
     const field = form.elements.namedItem(key);
     if (field) field.value = value;
   }
+  updateServiceFields();
 }
+
+function updateServiceFields() {
+  const service = form.elements.namedItem("service").value;
+  const remotePort = form.elements.namedItem("remote_service_port");
+  const localPort = form.elements.namedItem("local_port");
+  const sshOnly = service === "ssh-only";
+  remotePort.readOnly = sshOnly;
+  localPort.readOnly = sshOnly;
+  document.getElementById("startButton").disabled = sshOnly;
+  document.getElementById("stopButton").disabled = sshOnly;
+  document.getElementById("openButton").textContent = sshOnly ? "显示 SSH 命令" : "打开屏幕共享";
+  document.getElementById("tunnelDescription").textContent = sshOnly
+    ? "仅 SSH 模式不需要额外的本地服务隧道。"
+    : "本地端口连接到目标电脑的屏幕共享端口。";
+}
+
+form.elements.namedItem("service").addEventListener("change", (event) => {
+  const service = event.target.value;
+  if (service === "screen-sharing") {
+    form.elements.namedItem("remote_service_port").value = 5900;
+  } else if (service === "ssh-only") {
+    form.elements.namedItem("remote_service_port").value = 22;
+  }
+  updateServiceFields();
+});
 
 function showTunnel(result) {
   const running = Boolean(result.running);
