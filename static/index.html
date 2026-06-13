@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="lab-connect-token" content="__LAB_CONNECT_TOKEN__">
+  <title>Lab Connect</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <main class="shell">
+    <header class="hero">
+      <div>
+        <p class="eyebrow">EASYCONNECT · SSH JUMP HOST</p>
+        <h1>Lab Connect</h1>
+        <p>配置跳板机、部署公钥、诊断连接，并管理后台屏幕共享隧道。</p>
+      </div>
+      <div id="platformBadge" class="badge">检测环境中</div>
+    </header>
+
+    <nav class="steps" aria-label="配置步骤">
+      <button class="step active" data-panel="profile">1. 连接信息</button>
+      <button class="step" data-panel="keys">2. 公钥认证</button>
+      <button class="step" data-panel="diagnostics">3. 诊断</button>
+      <button class="step" data-panel="tunnel">4. 屏幕共享</button>
+    </nav>
+
+    <section id="profile" class="panel active">
+      <div class="section-title">
+        <div><span>01</span><h2>连接信息</h2></div>
+        <p>密码不会保存到磁盘或日志。</p>
+      </div>
+      <form id="profileForm" class="grid">
+        <label>配置名称<input name="profile_name" required pattern="[A-Za-z0-9_.-]+"></label>
+        <label>跳板机地址<input name="jump_host" required></label>
+        <label>跳板机端口<input name="jump_port" type="number" min="1" max="65535" required></label>
+        <label>跳板机用户名<input name="jump_user" required></label>
+        <label>目标电脑内网 IP<input name="target_host" required></label>
+        <label>目标电脑 SSH 端口<input name="target_port" type="number" min="1" max="65535" required></label>
+        <label>目标电脑用户名<input name="target_user" required></label>
+        <label>本地转发端口<input name="local_port" type="number" min="1" max="65535" required></label>
+        <label>远端服务
+          <select name="service">
+            <option value="screen-sharing">macOS 屏幕共享 / VNC</option>
+            <option value="custom">自定义 TCP 服务</option>
+          </select>
+        </label>
+        <label>远端服务端口<input name="remote_service_port" type="number" min="1" max="65535" required></label>
+        <label class="wide">SSH 私钥路径<input name="identity_file" required></label>
+      </form>
+      <div class="actions">
+        <button id="saveButton" class="primary">保存并生成 SSH 配置</button>
+      </div>
+    </section>
+
+    <section id="keys" class="panel">
+      <div class="section-title">
+        <div><span>02</span><h2>公钥认证</h2></div>
+        <p>首次部署需要密码，之后后台隧道使用密钥。</p>
+      </div>
+      <div class="card-row">
+        <article class="card">
+          <h3>1. 创建本机密钥</h3>
+          <p>如果指定路径已有密钥，会直接复用。</p>
+          <button id="createKeyButton">创建或检查密钥</button>
+        </article>
+        <article class="card">
+          <h3>2. 部署到跳板机</h3>
+          <label>跳板机密码<input id="jumpPassword" type="password" autocomplete="current-password"></label>
+          <button id="deployJumpButton">部署跳板机公钥</button>
+        </article>
+        <article class="card">
+          <h3>3. 部署到目标电脑</h3>
+          <p>请先完成跳板机公钥部署。</p>
+          <label>目标电脑密码<input id="targetPassword" type="password" autocomplete="current-password"></label>
+          <button id="deployTargetButton">部署目标电脑公钥</button>
+        </article>
+      </div>
+      <div class="notice">若医院门户要求通过网页导入登录节点公钥，可跳过“部署到跳板机”，在门户导入同一个 <code>.pub</code> 文件。</div>
+    </section>
+
+    <section id="diagnostics" class="panel">
+      <div class="section-title">
+        <div><span>03</span><h2>连接诊断</h2></div>
+        <p>依次检查 OpenSSH、跳板机、目标 SSH 和远端服务端口。</p>
+      </div>
+      <div class="actions">
+        <button id="diagnoseButton" class="primary">运行完整诊断</button>
+        <a id="downloadLogs" class="button-link" href="#">下载脱敏日志</a>
+      </div>
+      <div id="checks" class="checks empty">尚未运行诊断。</div>
+    </section>
+
+    <section id="tunnel" class="panel">
+      <div class="section-title">
+        <div><span>04</span><h2>后台隧道</h2></div>
+        <p>本地端口连接到目标电脑的屏幕共享端口。</p>
+      </div>
+      <div class="tunnel-state">
+        <span id="stateDot" class="state-dot"></span>
+        <div><strong id="stateText">正在检查</strong><small id="stateDetail"></small></div>
+      </div>
+      <div class="actions">
+        <button id="startButton" class="primary">启动后台隧道</button>
+        <button id="openButton">打开屏幕共享</button>
+        <button id="stopButton" class="danger">关闭隧道</button>
+        <button id="statusButton">刷新状态</button>
+      </div>
+    </section>
+
+    <section class="console-wrap">
+      <div class="console-title"><span>操作日志</span><button id="clearConsole">清空显示</button></div>
+      <pre id="console">Lab Connect 准备就绪。</pre>
+    </section>
+  </main>
+  <script src="/app.js"></script>
+</body>
+</html>
