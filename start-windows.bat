@@ -23,17 +23,42 @@ if not exist "%SCRIPT%" (
 
 where py >nul 2>nul
 if not errorlevel 1 (
-    set "PYTHON=py -3"
-    goto :python_found
+    py -3 --version >nul 2>nul
+    if not errorlevel 1 (
+        set "PYTHON=py -3"
+        goto :python_found
+    )
 )
 
 where python >nul 2>nul
 if not errorlevel 1 (
-    set "PYTHON=python"
-    goto :python_found
+    python --version >nul 2>nul
+    if not errorlevel 1 (
+        set "PYTHON=python"
+        goto :python_found
+    )
 )
 
-call :fail "Python 3 was not found. Install it from https://www.python.org/downloads/ and enable Add Python to PATH."
+echo Python 3 is not installed.
+echo.
+where winget >nul 2>nul
+if not errorlevel 1 (
+    choice /C YN /N /M "Install Python 3 now with winget? [Y/N]: "
+    if not errorlevel 2 (
+        echo.
+        echo Installing Python 3...
+        winget install --id Python.Python.3.12 --exact --source winget --accept-package-agreements --accept-source-agreements
+        if errorlevel 1 (
+            call :fail "Python installation failed. See the output above."
+            goto :end
+        )
+        echo.
+        echo Python was installed. Close this window, then run start-windows.bat again.
+        goto :end
+    )
+)
+
+call :fail "Python 3 was not found. Install it from https://www.python.org/downloads/windows/ and select Add Python to PATH."
 goto :end
 
 :python_found

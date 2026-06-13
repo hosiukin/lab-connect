@@ -30,11 +30,13 @@ Windows:
 
 1. Download and extract the complete repository ZIP. Do not download only the
    BAT file.
-2. Confirm that `start-windows.bat` and `lab_connect.py` are in the same
+2. Install Python 3.10 or newer. The launcher can install Python 3.12 through
+   `winget` when Python is missing.
+3. Confirm that `start-windows.bat` and `lab_connect.py` are in the same
    directory.
-3. Double-click `start-windows.bat`.
-4. Keep the launcher window open while using the setup page.
-5. Allow the local Python process if Windows Firewall asks. The server binds
+4. Double-click `start-windows.bat`.
+5. Keep the launcher window open while using the setup page.
+6. Allow the local Python process if Windows Firewall asks. The server binds
    only to `127.0.0.1`.
 
 If Windows shows a SmartScreen warning, choose **More info** and then
