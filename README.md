@@ -21,6 +21,16 @@ Each profile can have zero or more named port forwards. Examples:
 All forwards terminate through the target SSH host, not the jump host. This
 means applications may remain bound to `127.0.0.1` on the target computer.
 
+## Multiple servers
+
+Use the **Current server** selector on the connection page to switch between
+saved servers, then edit and save the selected profile. Choose **New server**
+to add another one without overwriting the current server. Existing
+single-server `~/.lab-connect/config.json` files are upgraded automatically on
+the next save. Lab Connect also writes every saved profile to
+`~/.ssh/lab-connect.conf`, so all of them remain available to `ssh` and VS Code
+Remote-SSH.
+
 ## Requirements
 
 - EasyConnect must already be connected.

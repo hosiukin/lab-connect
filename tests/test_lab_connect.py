@@ -261,6 +261,64 @@ class ConfigTests(unittest.TestCase):
                 config = lab_connect.load_config()
         self.assertEqual(config["direction"], "forward")
 
+    def test_load_profile_store_migrates_single_legacy_profile(self):
+        with tempfile.TemporaryDirectory() as folder:
+            config_file = Path(folder) / "config.json"
+            config_file.write_text(
+                '{"profile_name": "old-server", "jump_host": "10.0.0.1", "jump_user": "jump", '
+                '"target_host": "10.0.0.2", "target_user": "target", "forwards": []}',
+                encoding="utf-8",
+            )
+            with mock.patch.object(lab_connect, "CONFIG_FILE", config_file):
+                store = lab_connect.load_profile_store()
+        self.assertEqual(store["active_profile"], "old-server")
+        self.assertIn("old-server", store["profiles"])
+
+    def test_save_config_keeps_other_profiles_and_sets_active_profile(self):
+        with tempfile.TemporaryDirectory() as folder:
+            config_file = Path(folder) / "config.json"
+            first = lab_connect.validate_config(
+                {"profile_name": "first", "jump_host": "10.0.0.1", "jump_user": "jump", "target_host": "10.0.0.2", "target_user": "target", "forwards": []}
+            )
+            second = lab_connect.validate_config(
+                {"profile_name": "second", "jump_host": "10.0.0.3", "jump_user": "jump", "target_host": "10.0.0.4", "target_user": "target", "forwards": []}
+            )
+            with (
+                mock.patch.object(lab_connect, "CONFIG_FILE", config_file),
+                mock.patch.object(lab_connect, "APP_DIR", Path(folder)),
+                mock.patch.object(lab_connect, "LOG_FILE", Path(folder) / "lab-connect.log"),
+            ):
+                lab_connect.save_config(first)
+                lab_connect.save_config(second)
+                store = lab_connect.load_profile_store()
+        self.assertEqual(store["active_profile"], "second")
+        self.assertEqual(set(store["profiles"]), {"first", "second"})
+
+    def test_install_ssh_config_includes_every_saved_profile(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            ssh_dir = root / ".ssh"
+            first = lab_connect.validate_config(
+                {"profile_name": "first", "jump_host": "10.0.0.1", "jump_user": "jump", "target_host": "10.0.0.2", "target_user": "target", "forwards": []}
+            )
+            second = lab_connect.validate_config(
+                {"profile_name": "second", "jump_host": "10.0.0.3", "jump_user": "jump", "target_host": "10.0.0.4", "target_user": "target", "forwards": []}
+            )
+            with (
+                mock.patch.object(lab_connect, "APP_DIR", root / ".lab-connect"),
+                mock.patch.object(lab_connect, "CONFIG_FILE", root / ".lab-connect" / "config.json"),
+                mock.patch.object(lab_connect, "LOG_FILE", root / ".lab-connect" / "lab-connect.log"),
+                mock.patch.object(lab_connect, "SSH_DIR", ssh_dir),
+                mock.patch.object(lab_connect, "SSH_CONFIG", ssh_dir / "config"),
+                mock.patch.object(lab_connect, "MANAGED_SSH_CONFIG", ssh_dir / "lab-connect.conf"),
+            ):
+                lab_connect.save_config(first)
+                lab_connect.save_config(second)
+                lab_connect.install_ssh_config(second)
+            text = (ssh_dir / "lab-connect.conf").read_text(encoding="utf-8")
+        self.assertIn("Host first", text)
+        self.assertIn("Host second", text)
+
     def test_load_config_migrates_forwards_missing_bind_host(self):
         with tempfile.TemporaryDirectory() as folder:
             config_file = Path(folder) / "config.json"

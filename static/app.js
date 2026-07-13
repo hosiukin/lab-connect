@@ -1,6 +1,8 @@
 const token = document.querySelector('meta[name="lab-connect-token"]').content;
 const form = document.getElementById("profileForm");
 const consoleBox = document.getElementById("console");
+const profilePicker = document.getElementById("profilePicker");
+let activeProfile = null;
 
 function write(message, kind = "info") {
   const stamp = new Date().toLocaleTimeString();
@@ -30,13 +32,15 @@ function configFromForm() {
 }
 
 async function api(path, payload = {}) {
+  const request = { ...payload };
+  if (path !== "/api/state" && activeProfile) request.active_profile = activeProfile;
   const response = await fetch(path, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       "X-Lab-Connect-Token": token,
     },
-    body: JSON.stringify(payload),
+    body: JSON.stringify(request),
   });
   const data = await response.json();
   if (!response.ok) throw new Error(data.output || `HTTP ${response.status}`);
@@ -68,6 +72,37 @@ function fillForm(config) {
   if (radio) radio.checked = true;
   applyDirection(direction);
   renderForwards(config.forwards || []);
+}
+
+function fillProfilePicker(profiles, selected) {
+  profilePicker.innerHTML = "";
+  for (const name of profiles) {
+    const option = document.createElement("option");
+    option.value = name;
+    option.textContent = name;
+    option.selected = name === selected;
+    profilePicker.append(option);
+  }
+}
+
+function blankProfile() {
+  activeProfile = null;
+  fillForm({
+    profile_name: "",
+    jump_host: "",
+    jump_port: 22,
+    jump_user: "",
+    target_host: "",
+    target_port: 22,
+    target_user: "",
+    direction: "forward",
+    forwards: [],
+    identity_file: form.elements.namedItem("identity_file").value,
+  });
+  profilePicker.selectedIndex = -1;
+  document.getElementById("stateText").textContent = "尚未保存的新服务器";
+  document.getElementById("stateDetail").textContent = "填写连接信息并保存后即可使用。";
+  document.getElementById("endpointList").innerHTML = "";
 }
 
 function renderForwards(forwards) {
@@ -221,13 +256,23 @@ function showTunnel(result) {
   }
 }
 
-async function refreshState() {
-  const state = await api("/api/state");
+async function refreshState(profileName = "") {
+  const state = await api("/api/state", profileName ? { profile_name: profileName } : {});
+  activeProfile = state.active_profile;
+  fillProfilePicker(state.profiles, activeProfile);
   fillForm(state.config);
   document.getElementById("platformBadge").textContent =
     `${state.platform} · Python ${state.python}`;
   showTunnel(state.tunnel);
 }
+
+profilePicker.addEventListener("change", () => {
+  refreshState(profilePicker.value)
+    .then(() => write(`已切换到服务器：${activeProfile}`, "success"))
+    .catch((error) => write(error.message, "error"));
+});
+
+document.getElementById("newProfileButton").addEventListener("click", blankProfile);
 
 document.querySelectorAll(".step").forEach((button) => {
   button.addEventListener("click", () => {
@@ -244,6 +289,8 @@ document.getElementById("saveButton").addEventListener("click", (event) => {
     if (!form.reportValidity()) return;
     const result = await api("/api/save", { config: configFromForm() });
     write(result.output, result.ok ? "success" : "error");
+    activeProfile = configFromForm().profile_name;
+    await refreshState();
   });
 });
 

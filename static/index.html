@@ -28,7 +28,15 @@
     <section id="profile" class="panel active">
       <div class="section-title">
         <div><span>01</span><h2>连接信息</h2></div>
-        <p>密码不会保存到磁盘或日志。</p>
+        <p>选择已保存的服务器即可继续修改；密码不会保存到磁盘或日志。</p>
+      </div>
+
+      <div class="profile-switcher">
+        <label>当前服务器
+          <select id="profilePicker" aria-label="选择已保存的服务器"></select>
+        </label>
+        <button id="newProfileButton" type="button">新建服务器</button>
+        <small>保存后会记住这台服务器；修改“配置名称”可为它改名。</small>
       </div>
 
       <!-- Direction toggle -->

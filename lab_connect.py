@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import os
 import platform
@@ -86,35 +87,78 @@ def default_config() -> dict:
     }
 
 
-def load_config() -> dict:
+def merge_stored_config(stored: dict) -> dict:
+    """Fill defaults and migrate a single legacy profile without validating it."""
     config = default_config()
-    if CONFIG_FILE.exists():
-        try:
-            stored = json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
-            if isinstance(stored, dict):
-                config.update(stored)
-                # Migrate forwards that are missing bind_host
-                for forward in config.get("forwards", []):
-                    if isinstance(forward, dict) and "bind_host" not in forward:
-                        forward["bind_host"] = "0.0.0.0"
-                if "forwards" not in stored:
-                    service = stored.get("service", "screen-sharing")
-                    if service == "ssh-only":
-                        config["forwards"] = []
-                    else:
-                        config["forwards"] = [
-                            {
-                                "name": "Screen Sharing" if service == "screen-sharing" else "Custom service",
-                                "local_port": int(stored.get("local_port", 15901)),
-                                "remote_host": "127.0.0.1",
-                                "remote_port": int(stored.get("remote_service_port", 5900)),
-                                "open_mode": "vnc" if service == "screen-sharing" else "browser",
-                                "bind_host": "0.0.0.0",
-                            }
-                        ]
-        except (OSError, json.JSONDecodeError) as exc:
-            log(f"Failed to read config: {exc}")
+    config.update(stored)
+    for forward in config.get("forwards", []):
+        if isinstance(forward, dict) and "bind_host" not in forward:
+            forward["bind_host"] = "0.0.0.0"
+    if "forwards" not in stored:
+        service = stored.get("service", "screen-sharing")
+        if service == "ssh-only":
+            config["forwards"] = []
+        else:
+            config["forwards"] = [{
+                "name": "Screen Sharing" if service == "screen-sharing" else "Custom service",
+                "local_port": int(stored.get("local_port", 15901)),
+                "remote_host": "127.0.0.1",
+                "remote_port": int(stored.get("remote_service_port", 5900)),
+                "open_mode": "vnc" if service == "screen-sharing" else "browser",
+                "bind_host": "0.0.0.0",
+            }]
     return config
+
+
+def load_profile_store() -> dict:
+    """Load all saved profiles, automatically upgrading the former one-profile file."""
+    fallback = default_config()
+    store = {"active_profile": fallback["profile_name"], "profiles": {fallback["profile_name"]: fallback}}
+    if not CONFIG_FILE.exists():
+        return store
+    try:
+        stored = json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
+        if not isinstance(stored, dict):
+            return store
+        raw_profiles = stored.get("profiles")
+        if isinstance(raw_profiles, dict):
+            profiles = {
+                str(name): merge_stored_config(value)
+                for name, value in raw_profiles.items()
+                if isinstance(value, dict)
+            }
+            if profiles:
+                active = str(stored.get("active_profile", ""))
+                store = {"active_profile": active if active in profiles else next(iter(profiles)), "profiles": profiles}
+        else:
+            # The old file was itself one profile. Keep it intact as the first profile.
+            config = merge_stored_config(stored)
+            store = {"active_profile": config["profile_name"], "profiles": {config["profile_name"]: config}}
+    except (OSError, json.JSONDecodeError) as exc:
+        log(f"Failed to read config: {exc}")
+    return store
+
+
+def load_config(profile_name: str | None = None) -> dict:
+    store = load_profile_store()
+    name = profile_name or store["active_profile"]
+    if name not in store["profiles"]:
+        raise ValueError(f"Unknown profile: {name}")
+    return copy.deepcopy(store["profiles"][name])
+
+
+def profile_names() -> list[str]:
+    return list(load_profile_store()["profiles"])
+
+
+def write_profile_store(store: dict) -> None:
+    APP_DIR.mkdir(parents=True, exist_ok=True)
+    CONFIG_FILE.write_text(
+        json.dumps(store, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    if not IS_WINDOWS:
+        CONFIG_FILE.chmod(0o600)
 
 
 def validate_config(raw: dict) -> dict:
@@ -206,14 +250,18 @@ def validate_config(raw: dict) -> dict:
     return config
 
 
-def save_config(config: dict) -> None:
-    APP_DIR.mkdir(parents=True, exist_ok=True)
-    CONFIG_FILE.write_text(
-        json.dumps(config, ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
-    )
-    if not IS_WINDOWS:
-        CONFIG_FILE.chmod(0o600)
+def save_config(config: dict, previous_profile: str | None = None) -> None:
+    has_saved_store = CONFIG_FILE.exists()
+    store = load_profile_store()
+    profiles = store["profiles"]
+    # Before the first save, the default profile is only a UI placeholder.
+    if not has_saved_store and set(profiles) == {default_config()["profile_name"]}:
+        profiles.clear()
+    if previous_profile and previous_profile != config["profile_name"]:
+        profiles.pop(previous_profile, None)
+    profiles[config["profile_name"]] = config
+    store["active_profile"] = config["profile_name"]
+    write_profile_store(store)
     log(f"Saved profile {config['profile_name']}")
 
 
@@ -333,7 +381,7 @@ def backup(path: Path) -> Path | None:
     return destination
 
 
-def install_ssh_config(config: dict) -> dict:
+def install_ssh_config(config: dict, profiles: list[dict] | None = None) -> dict:
     SSH_DIR.mkdir(parents=True, exist_ok=True)
     if not IS_WINDOWS:
         SSH_DIR.chmod(0o700)
@@ -341,7 +389,11 @@ def install_ssh_config(config: dict) -> dict:
     managed_backup = backup(MANAGED_SSH_CONFIG)
     if managed_backup:
         backups.append(str(managed_backup))
-    MANAGED_SSH_CONFIG.write_text(ssh_config_text(config), encoding="utf-8")
+    if profiles is None:
+        profiles = list(load_profile_store()["profiles"].values()) if CONFIG_FILE.exists() else [config]
+    if not any(item.get("profile_name") == config["profile_name"] for item in profiles):
+        profiles.append(config)
+    MANAGED_SSH_CONFIG.write_text("\n".join(ssh_config_text(item) for item in profiles), encoding="utf-8")
     include_line = f'Include "{MANAGED_SSH_CONFIG}"'
     existing = SSH_CONFIG.read_text(encoding="utf-8") if SSH_CONFIG.exists() else ""
     if include_line not in existing:
@@ -885,11 +937,20 @@ class AppHandler(BaseHTTPRequestHandler):
             payload = self.body()
             path = urlparse(self.path).path
             if path == "/api/state":
-                config = load_config()
+                store = load_profile_store()
+                requested_profile = str(payload.get("profile_name", "")).strip()
+                if requested_profile:
+                    if requested_profile not in store["profiles"]:
+                        raise ValueError(f"Unknown profile: {requested_profile}")
+                    store["active_profile"] = requested_profile
+                    write_profile_store(store)
+                config = copy.deepcopy(store["profiles"][store["active_profile"]])
                 self.send_json(
                     {
                         "ok": True,
                         "config": config,
+                        "profiles": list(store["profiles"]),
+                        "active_profile": store["active_profile"],
                         "platform": platform.system(),
                         "python": sys.version.split()[0],
                         "ssh": shutil.which("ssh"),
@@ -898,24 +959,25 @@ class AppHandler(BaseHTTPRequestHandler):
                 )
                 return
             config = validate_config(payload.get("config", payload))
+            previous_profile = str(payload.get("active_profile", "")).strip() or None
             if path == "/api/save":
-                save_config(config)
+                save_config(config, previous_profile)
                 result = install_ssh_config(config)
             elif path == "/api/key/create":
-                save_config(config)
+                save_config(config, previous_profile)
                 result = ensure_key(config)
             elif path == "/api/key/deploy":
-                save_config(config)
+                save_config(config, previous_profile)
                 result = deploy_key(
                     config,
                     str(payload.get("destination", "")),
                     str(payload.get("password", "")),
                 )
             elif path == "/api/diagnose":
-                save_config(config)
+                save_config(config, previous_profile)
                 result = {"ok": True, "checks": diagnose(config)}
             elif path == "/api/tunnel/start":
-                save_config(config)
+                save_config(config, previous_profile)
                 result = start_tunnel(config)
             elif path == "/api/tunnel/stop":
                 result = stop_tunnel(config)
