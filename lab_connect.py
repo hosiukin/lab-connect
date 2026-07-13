@@ -347,7 +347,7 @@ def ssh_config_text(config: dict) -> str:
         header = "# Managed by Lab Connect (REVERSE mode). Edit through the Lab Connect UI."
     else:
         header = "# Managed by Lab Connect. Edit through the Lab Connect UI."
-    return f"""{header}
+    text = f"""{header}
 Host {jump_alias}
     HostName {config["jump_host"]}
     User {config["jump_user"]}
@@ -359,7 +359,12 @@ Host {jump_alias}
     ServerAliveInterval 60
     ServerAliveCountMax 3
 
-Host {target_alias}
+"""
+    # A reverse tunnel connects to the jump host only. Do not emit a target
+    # host stanza with empty fields, because OpenSSH rejects blank HostName/User.
+    if direction == "reverse":
+        return text
+    return text + f"""Host {target_alias}
     HostName {config["target_host"]}
     User {config["target_user"]}
     Port {config["target_port"]}
@@ -393,7 +398,17 @@ def install_ssh_config(config: dict, profiles: list[dict] | None = None) -> dict
         profiles = list(load_profile_store()["profiles"].values()) if CONFIG_FILE.exists() else [config]
     if not any(item.get("profile_name") == config["profile_name"] for item in profiles):
         profiles.append(config)
-    MANAGED_SSH_CONFIG.write_text("\n".join(ssh_config_text(item) for item in profiles), encoding="utf-8")
+    ready_profiles = []
+    for profile in profiles:
+        try:
+            ready_profiles.append(validate_config(profile))
+        except (TypeError, ValueError) as exc:
+            name = profile.get("profile_name", "unnamed") if isinstance(profile, dict) else "unnamed"
+            log(f"Skipped incomplete profile {name!r} when generating SSH config: {exc}")
+    MANAGED_SSH_CONFIG.write_text(
+        "\n".join(ssh_config_text(item) for item in ready_profiles),
+        encoding="utf-8",
+    )
     include_line = f'Include "{MANAGED_SSH_CONFIG}"'
     existing = SSH_CONFIG.read_text(encoding="utf-8") if SSH_CONFIG.exists() else ""
     if include_line not in existing:

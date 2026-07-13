@@ -125,6 +125,8 @@ class ConfigTests(unittest.TestCase):
         )
         text = lab_connect.ssh_config_text(config)
         self.assertIn("REVERSE", text)
+        self.assertIn("Host home-pc-jump", text)
+        self.assertNotIn("Host home-pc\n", text)
 
     def test_ssh_only_profile_has_no_forwards(self):
         config = lab_connect.validate_config(
@@ -318,6 +320,27 @@ class ConfigTests(unittest.TestCase):
             text = (ssh_dir / "lab-connect.conf").read_text(encoding="utf-8")
         self.assertIn("Host first", text)
         self.assertIn("Host second", text)
+
+    def test_install_ssh_config_skips_incomplete_profiles(self):
+        with tempfile.TemporaryDirectory() as folder:
+            root = Path(folder)
+            ssh_dir = root / ".ssh"
+            ready = lab_connect.validate_config(
+                {"profile_name": "ready", "jump_host": "10.0.0.1", "jump_user": "jump", "target_host": "10.0.0.2", "target_user": "target", "forwards": []}
+            )
+            incomplete = lab_connect.default_config()
+            with (
+                mock.patch.object(lab_connect, "APP_DIR", root / ".lab-connect"),
+                mock.patch.object(lab_connect, "LOG_FILE", root / ".lab-connect" / "lab-connect.log"),
+                mock.patch.object(lab_connect, "SSH_DIR", ssh_dir),
+                mock.patch.object(lab_connect, "SSH_CONFIG", ssh_dir / "config"),
+                mock.patch.object(lab_connect, "MANAGED_SSH_CONFIG", ssh_dir / "lab-connect.conf"),
+            ):
+                lab_connect.install_ssh_config(ready, [incomplete, ready])
+            text = (ssh_dir / "lab-connect.conf").read_text(encoding="utf-8")
+        self.assertIn("Host ready", text)
+        self.assertNotIn("Host lab-computer", text)
+        self.assertNotIn("HostName \n", text)
 
     def test_load_config_migrates_forwards_missing_bind_host(self):
         with tempfile.TemporaryDirectory() as folder:
