@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark">
+<title>Spark DSH 安装器 · 一次配置，双击进入实验室 AI</title>
+<meta name="description" content="为 macOS / Windows / Linux 生成 spark 服务器 DSH 的一键安装包：自动配置跳板机 SSH、隧道和桌面图标。">
+<style>/*__CSS__*/</style>
+</head>
+<body>
+<div class="bg-grid" aria-hidden="true"></div>
+<div class="glow glow-a" aria-hidden="true"></div>
+<div class="glow glow-b" aria-hidden="true"></div>
+
+<header class="topbar">
+  <a class="brand" href="#top" aria-label="Spark DSH 安装器">
+    <span class="brand-mark" aria-hidden="true">
+      <svg viewBox="0 0 48 48" role="img"><path d="M24 3l3.6 12.8L40 12l-4.8 12.4L48 28l-12.8 3.6L40 44l-12.4-4.8L24 52l-3.6-12.8L8 44l4.8-12.4L0 28l12.8-3.6L8 12l12.4 4.8z" fill="url(#g1)"/><defs><linearGradient id="g1" x1="8" y1="4" x2="42" y2="46"><stop stop-color="#67f5d9"/><stop offset="1" stop-color="#4d7dff"/></linearGradient></defs></svg>
+    </span>
+    <span class="brand-text"><strong>Spark DSH</strong><small>实验室 AI 安装器</small></span>
+  </a>
+  <nav class="topnav" aria-label="页面导航">
+    <a href="#installer">安装</a>
+    <a href="#datasets">内置数据</a>
+    <a href="#after">开始使用</a>
+    <a href="#faq">排错</a>
+  </nav>
+  <span class="version-pill">v2.0 · 单文件版</span>
+</header>
+
+<main id="top">
+  <section class="hero">
+    <div class="hero-copy">
+      <p class="eyebrow"><span class="dot"></span> 为 spark 实验室服务器设计</p>
+      <h1>配置一次，<br><span class="grad">双击进入</span>实验室 AI。</h1>
+      <p class="lede">在你的电脑上生成一个安装包。运行后自动完成 SSH 密钥、跳板机配置、隧道和桌面图标；以后双击 <b>Spark DSH</b>，直接打开服务器上的 DSH，内置数据集和技能已经准备好。</p>
+      <div class="hero-badges">
+        <span>macOS / Windows / Linux</span>
+        <span>无需管理员权限</span>
+        <span>不收集密码</span>
+      </div>
+    </div>
+    <div class="hero-terminal" aria-hidden="true">
+      <div class="term-dots"><i></i><i></i><i></i></div>
+      <pre><span class="t-muted"># 一次配置</span>
+<span class="t-accent">$</span> spark-install
+<span class="t-ok">✓</span> SSH 密钥
+<span class="t-ok">✓</span> 跳板机 10.30.24.1
+<span class="t-ok">✓</span> 隧道 18090 → 8090
+<span class="t-ok">✓</span> 桌面图标 Spark DSH
+
+<span class="t-muted"># 以后每次</span>
+<span class="t-accent">双击</span> Spark DSH
+<span class="t-ok">→</span> 已登录，直接开始</pre>
+    </div>
+  </section>
+
+  <section class="stepper" aria-label="安装流程">
+    <div class="step"><span>01</span><div><b>填写连接信息</b><small>跳板机与 spark 账号</small></div></div>
+    <div class="step"><span>02</span><div><b>下载安装包</b><small>解压后双击运行</small></div></div>
+    <div class="step"><span>03</span><div><b>输入账号密码</b><small>用于部署公钥</small></div></div>
+    <div class="step"><span>04</span><div><b>双击桌面图标</b><small>自动隧道并打开 DSH</small></div></div>
+  </section>
+
+  <section id="installer" class="installer-grid">
+    <form class="card form-card" id="installer-form" novalidate>
+      <div class="card-head">
+        <div>
+          <p class="kicker">STEP 01—02</p>
+          <h2>生成我的安装包</h2>
+        </div>
+        <span class="chip" id="valid-chip">待填写</span>
+      </div>
+
+      <fieldset class="field-group">
+        <legend>我的电脑</legend>
+        <div class="os-tabs" id="os-tabs" role="tablist" aria-label="操作系统">
+          <button type="button" data-os="mac" role="tab" aria-selected="false"><span class="os-icon">⌘</span>macOS</button>
+          <button type="button" data-os="win" role="tab" aria-selected="false"><span class="os-icon">⊞</span>Windows</button>
+          <button type="button" data-os="linux" role="tab" aria-selected="false"><span class="os-icon">🐧</span>Linux</button>
+        </div>
+        <p class="hint" id="os-hint">已自动识别。安装包同时包含三个平台的脚本，下载后按你的系统双击对应文件即可。</p>
+      </fieldset>
+
+      <fieldset class="field-group">
+        <legend>连接方式</legend>
+        <div class="mode-grid">
+          <label class="mode-card">
+            <input type="radio" name="mode" value="jump" checked>
+            <span class="mode-body"><b>EasyConnect + 跳板机</b><small>医院网络的标准方式</small><em>推荐</em></span>
+          </label>
+          <label class="mode-card">
+            <input type="radio" name="mode" value="direct">
+            <span class="mode-body"><b>直连 spark</b><small>已在实验室内网 / VPN</small></span>
+          </label>
+          <label class="mode-card">
+            <input type="radio" name="mode" value="chain">
+            <span class="mode-body"><b>自定义跳板链</b><small>高级：多级 ProxyJump</small></span>
+          </label>
+        </div>
+
+        <div class="subgrid" id="jump-fields">
+          <label class="field"><span>跳板机地址</span><input id="jumpHost" name="jumpHost" value="10.30.24.1" autocomplete="off" spellcheck="false"></label>
+          <label class="field field-sm"><span>端口</span><input id="jumpPort" name="jumpPort" type="number" min="1" max="65535" value="22" inputmode="numeric"></label>
+          <label class="field"><span>跳板机用户名</span><input id="jumpUser" name="jumpUser" placeholder="通常是你的 spark 用户名" autocomplete="username" spellcheck="false"></label>
+        </div>
+
+        <div class="subgrid" id="spark-fields">
+          <label class="field"><span>spark 地址</span><input id="sparkHost" name="sparkHost" value="10.33.250.29" autocomplete="off" spellcheck="false"></label>
+          <label class="field field-sm"><span>端口</span><input id="sparkPort" name="sparkPort" type="number" min="1" max="65535" value="22" inputmode="numeric"></label>
+          <label class="field"><span>spark 用户名</span><input id="sparkUser" name="sparkUser" placeholder="你的实验室账号" autocomplete="username" spellcheck="false"></label>
+        </div>
+
+        <label class="field" id="chain-field" hidden><span>跳板链（ProxyJump）</span><input id="chain" name="chain" placeholder="alice@10.30.24.1:22, alice@10.30.24.2" autocomplete="off" spellcheck="false"><small>按 OpenSSH 语法填写，从外到内用逗号分隔。需要你自行确保每一跳都已部署公钥。</small></label>
+      </fieldset>
+
+      <fieldset class="field-group">
+        <legend>本机设置</legend>
+        <div class="subgrid">
+          <label class="field"><span>SSH 别名</span><input id="profile" name="profile" value="spark" autocomplete="off" spellcheck="false"><small>终端里用 <code>ssh spark</code> 连接</small></label>
+          <label class="field field-sm"><span>本地端口</span><input id="localPort" name="localPort" type="number" min="1024" max="65535" value="18090" inputmode="numeric"><small>被占用时改一个</small></label>
+        </div>
+        <details class="advanced">
+          <summary>高级选项</summary>
+          <label class="field"><span>SSH 私钥路径</span><input id="keyFile" name="keyFile" value="~/.ssh/id_ed25519_spark" autocomplete="off" spellcheck="false"><small>不存在时会自动生成 ed25519 密钥</small></label>
+          <label class="check"><input type="checkbox" id="openAfterInstall" checked><span>安装完成后立即建立隧道并打开门户</span></label>
+        </details>
+      </fieldset>
+
+      <div class="errors" id="errors" role="alert" hidden></div>
+
+      <div class="download-row">
+        <button class="btn btn-primary" type="submit" id="btn-zip">
+          <span class="btn-ico" aria-hidden="true">↓</span>
+          <span><b>下载通用安装包</b><small>.zip · 约 200 KB · 三平台</small></span>
+        </button>
+        <button class="btn btn-ghost" type="button" id="btn-copy" title="复制手动运行命令">复制命令</button>
+      </div>
+      <div class="single-row">
+        <span>只要单文件：</span>
+        <button type="button" data-single="mac">macOS .command</button>
+        <button type="button" data-single="win">Windows .bat</button>
+        <button type="button" data-single="linux">Linux .sh</button>
+      </div>
+      <p class="hint" id="download-hint">推荐下载 zip：解压后仍保留可执行权限。单文件下载后可能需要手动 <code>chmod +x</code>。</p>
+    </form>
+
+    <aside class="card side-card">
+      <p class="kicker">安装预览</p>
+      <h2>将写入你电脑的配置</h2>
+      <dl class="summary" id="summary">
+        <div><dt>SSH 别名</dt><dd>spark</dd></div>
+        <div><dt>链路</dt><dd>alice@10.30.24.1 → alice@10.33.250.29</dd></div>
+        <div><dt>本地隧道</dt><dd>127.0.0.1:18090 → 8090</dd></div>
+        <div><dt>桌面图标</dt><dd>Spark DSH</dd></div>
+      </dl>
+      <div class="side-note">
+        <b>只改这三处</b>
+        <p>用户名、跳板机地址、本地端口。其余保持默认即可。</p>
+      </div>
+      <div class="checklist">
+        <p><span>1</span> 先连上 EasyConnect</p>
+        <p><span>2</span> 解压，双击对应脚本</p>
+        <p><span>3</span> 按提示输入账号密码</p>
+        <p><span>4</span> 桌面出现 Spark DSH</p>
+      </div>
+      <div class="side-foot">
+        <span class="lock">安全</span>
+        <p>安装器不读取、不保存密码；密码只在 <code>ssh</code> 的交互提示中输入。配置仅写入本机 <code>~/.ssh/config</code> 的受管区块。</p>
+      </div>
+    </aside>
+  </section>
+
+  <section class="section" id="datasets">
+    <div class="section-head">
+      <div><p class="kicker">BUILT-IN</p><h2>打开就有的数据集</h2></div>
+      <p>不需要上传、不需要下载。新账号的 DSH 工作区已挂好共享数据与技能，直接用自然语言提问即可。</p>
+    </div>
+    <div class="dataset-grid">
+      <article class="dataset-card">
+        <div class="ds-top"><span class="ds-tag">BRAF</span><span class="ds-size">4.2 MB</span></div>
+        <h3>braf_n316</h3><p>316 例黑色素瘤队列，含临床、病理与 BRAF 突变表。</p>
+        <code>/srv/spark-shared/datasets/braf_n316</code>
+      </article>
+      <article class="dataset-card">
+        <div class="ds-top"><span class="ds-tag">CRC</span><span class="ds-size">1.5 GB</span></div>
+        <h3>crc_full</h3><p>25,427 例结直肠癌完整导出，适合队列筛选与基线分析。</p>
+        <code>/srv/spark-shared/datasets/crc_full</code>
+      </article>
+      <article class="dataset-card">
+        <div class="ds-top"><span class="ds-tag">HIS</span><span class="ds-size">2.2 GB</span></div>
+        <h3>n25427 · 22 张表</h3><p>住院、门诊、检验、病理、影像等原始 HIS 导出，表格级关联。</p>
+        <code>/srv/spark-shared/datasets/n25427</code>
+      </article>
+      <article class="dataset-card">
+        <div class="ds-top"><span class="ds-tag">随访</span><span class="ds-size">25,427 × 37</span></div>
+        <h3>followup</h3><p>结局、生存时间、删失与质控字段，可按患者编号合并。</p>
+        <code>/srv/spark-shared/datasets/followup</code>
+      </article>
+      <article class="dataset-card wide">
+        <div class="ds-top"><span class="ds-tag">SQLite</span><span class="ds-size">3.4 GB</span></div>
+        <h3>research.sqlite · patient_timeline</h3><p>已规范化的研究数据库：每行一个患者时间点，主键 <code>patient_sn</code>，可直接写 SQL 或让助手查询。</p>
+        <code>/srv/spark-work/.spark-shared-datasets/n25427/research.sqlite</code>
+      </article>
+    </div>
+    <div class="prompt-strip">
+      <span>可以这样问</span>
+      <button type="button" class="prompt" data-prompt="用 braf_n316 统计 BRAF 突变与临床分期的关系，并画图">用 braf_n316 统计 BRAF 突变与分期的关系</button>
+      <button type="button" class="prompt" data-prompt="从 research.sqlite 筛选 2018 年后确诊、随访完整的 CRC 患者">筛选 2018 年后确诊、随访完整的 CRC 患者</button>
+      <button type="button" class="prompt" data-prompt="把 n25427 的病理表和随访表按 patient_sn 关联，导出 CSV">关联病理与随访表并导出 CSV</button>
+    </div>
+  </section>
+
+  <section class="section" id="after">
+    <div class="section-head">
+      <div><p class="kicker">AFTER INSTALL</p><h2>双击之后会发生什么</h2></div>
+      <p>桌面图标背后是一个小小的启动器：检查隧道 → 需要时重建 → 打开已登录的门户。</p>
+    </div>
+    <div class="after-grid">
+      <div class="after-card"><span class="num">01</span><h3>自动隧道</h3><p>在后台运行 <code>ssh -N -L 18090:127.0.0.1:8090</code>，复用连接，断线后再次双击即可恢复。</p></div>
+      <div class="after-card"><span class="num">02</span><h3>打开即进入</h3><p>浏览器打开 <code>http://127.0.0.1:18090</code>。首次需登录一次；门户会话保持 12 小时，期间双击直接进入 DSH。</p></div>
+      <div class="after-card"><span class="num">03</span><h3>内置技能</h3><p>工作区自带 <code>spark-datasets</code>、<code>dprlab-reading</code> 等技能，直接说“看看内置数据集”即可。</p></div>
+    </div>
+    <div class="first-run">
+      <div>
+        <h3>第一次打开，试这一句</h3>
+        <p>“列出内置数据集，并告诉我 braf_n316 有哪些字段。”</p>
+      </div>
+      <button type="button" class="btn btn-ghost" id="copy-first">复制这句话</button>
+    </div>
+  </section>
+
+  <section class="section" id="faq">
+    <div class="section-head">
+      <div><p class="kicker">TROUBLESHOOTING</p><h2>常见问题</h2></div>
+      <p>90% 的问题来自三件事：EasyConnect 没连、公钥没部署、端口被占用。</p>
+    </div>
+    <div class="faq-list">
+      <details><summary>macOS 提示“无法验证开发者”，或双击没反应</summary><p>在 Finder 里右键安装脚本 →“打开”→ 再点“打开”。如果仍被拦截，到“系统设置 → 隐私与安全性”点“仍要打开”；或在终端执行 <code>xattr -dr com.apple.quarantine ~/Downloads/spark-install.command</code>。桌面 App 同理。</p></details>
+      <details><summary>Windows 出现 SmartScreen“已保护你的电脑”</summary><p>点“更多信息”→“仍要运行”。安装器是纯文本脚本，可先用记事本打开检查。若公司策略完全禁止 .bat，需要管理员放行，或改用 WSL 里的 Linux 脚本。</p></details>
+      <details><summary>提示 ssh 退出码 255 / 连接超时</summary><p>先确认 EasyConnect 已连接，浏览器能打开院内地址；再确认跳板机地址和端口没有变。安装器会把详细日志写到 <code>~/.spark-dsh/launcher.log</code>（Windows 为 <code>%LOCALAPPDATA%\SparkDSH\launcher.log</code>）。</p></details>
+      <details><summary>本地端口 18090 被占用</summary><p>macOS / Linux：<code>lsof -nP -iTCP:18090 -sTCP:LISTEN</code>；Windows：<code>netstat -ano | findstr 18090</code>。关掉占用的程序，或在上方把本地端口改成 18091 后重新生成安装包。</p></details>
+      <details><summary>公钥部署失败，或提示 Permission denied</summary><p>把安装器显示的 <code>~/.ssh/id_ed25519_spark.pub</code> 内容导入医院门户的 SSH 公钥设置，然后重新运行安装器。安装器不会保存你的密码。</p></details>
+      <details><summary>门户要求登录 / 登录后回到登录页</summary><p>用 spark 的 Linux 账号和密码登录，不是工号或邮箱。Cookie 有效期为 12 小时；清除浏览器 Cookie 或换浏览器后需要重新登录。</p></details>
+      <details><summary>怎么停止隧道或卸载</summary><p>macOS / Linux 运行 <code>~/.spark-dsh/uninstall.sh</code>；Windows 运行 <code>%LOCALAPPDATA%\SparkDSH\stop-tunnel.ps1</code>，再删除桌面快捷方式和该文件夹。卸载会移除 <code>~/.ssh/config</code> 中的受管区块，但保留密钥。</p></details>
+      <details><summary>需要管理员权限吗？会上传患者数据吗？</summary><p>不需要管理员权限，全部安装在用户目录。数据始终留在 spark 服务器，本机只建立 SSH 隧道；安装器和启动器都不会把数据发到院外。</p></details>
+    </div>
+  </section>
+
+  <section class="section security">
+    <div class="security-inner">
+      <div class="shield" aria-hidden="true">✓</div>
+      <div>
+        <h2>密码不经过安装器</h2>
+        <p>这个页面是纯静态 HTML，不向任何服务器发送你的输入、不埋点、不保存密码。生成的脚本只包含地址、用户名和端口；密码只由 <code>ssh</code>（或 <code>ssh-copy-id</code>）在终端里直接向你询问，不写入任何文件。</p>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer class="footer">
+  <div><b>Spark DSH</b> · 实验室 AI 安装器</div>
+  <div>配置仅保存在本机 · <span id="build-time">generated</span></div>
+  <div>遇到问题先看 <a href="#faq">常见问题</a></div>
+</footer>
+
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+<script type="module">/*__JS__*/</script>
+</body>
+</html>

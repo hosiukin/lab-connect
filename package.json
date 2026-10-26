@@ -1,0 +1,11 @@
+{
+  "name": "spark-dsh-installer",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Single-file installer generator for Spark DSH",
+  "scripts": {
+    "build": "python3 build_installer.py",
+    "test": "node --test tests/generator.test.mjs && python3 -m unittest discover -s tests -v"
+  }
+}
