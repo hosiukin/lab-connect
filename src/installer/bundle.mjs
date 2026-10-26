@@ -41,6 +41,16 @@ export function buildReadme(cfg, generatedAt = new Date()) {
     "  3. 桌面出现 spark-dsh.desktop；双击前如提示“不受信任”，右键允许启动。",
     "  4. 以后从桌面或应用菜单打开 “Spark DSH”。",
     "",
+    "iPad（可选，Windows 常开电脑做网关）",
+    "-".repeat(48),
+    "  1. 先在 Windows 上安装并双击 Spark DSH，确认本机能打开门户。",
+    "  2. 运行压缩包里的 spark-ipad-gateway.ps1；脚本会请求管理员权限。",
+    "  3. iPad 与这台 Windows 连同一个 Wi-Fi / 局域网。",
+    "  4. 在 iPad 打开脚本打印的 " + "http" + "://" + "<Windows 的局域网 IP>:18091/。",
+    "  5. 撤销：spark-ipad-gateway.ps1 -Remove",
+    "  注意：只允许本地子网，不要把 18091 映射到公网；日志见",
+    "        %LOCALAPPDATA%\\SparkDSH\\ipad-urls.txt。",
+    "",
     "安装器做了什么",
     "-".repeat(48),
     "  · 生成或复用 ed25519 SSH 密钥",
@@ -69,12 +79,19 @@ export function buildReadme(cfg, generatedAt = new Date()) {
 export function installerFiles(cfg, icons = {}, generatedAt = new Date()) {
   const unix = buildUnixInstaller(cfg, icons);
   const win = buildWindowsInstaller(cfg, icons).replace(/\r?\n/g, "\r\n");
-  return [
+  const files = [
     {name: "spark-install.command", text: unix, mode: 0o755},
     {name: "spark-install.sh", text: unix, mode: 0o755},
     {name: "spark-install.bat", text: win, mode: 0o644},
-    {name: "README.txt", text: buildReadme(cfg, generatedAt), mode: 0o644},
   ];
+  const gateway = String(icons.gateway || "").replace(/^\uFEFF/, "").replace(/\r?\n/g, "\r\n");
+  if (gateway) {
+    // Windows PowerShell 5.1 treats BOM-less UTF-8 as ANSI; keep the BOM so
+    // the Chinese prompts and help text display correctly.
+    files.push({name: "spark-ipad-gateway.ps1", text: "\uFEFF" + gateway, mode: 0o644});
+  }
+  files.push({name: "README.txt", text: buildReadme(cfg, generatedAt), mode: 0o644});
+  return files;
 }
 
 export function installerZip(cfg, icons = {}, generatedAt = new Date()) {

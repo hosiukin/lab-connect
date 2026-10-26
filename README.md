@@ -4,7 +4,7 @@
 
 > **直接打开：[install.html](install.html)**（约 200 KB，单文件，离线可用）
 >
-> 这个页面会根据你的系统生成安装脚本，不收集密码，也不需要管理员权限。
+> 这个页面会根据你的系统生成安装脚本，不收集密码；基础安装不需要管理员权限（可选的 iPad 网关需要一次管理员放行）。
 
 ---
 
@@ -71,6 +71,68 @@
 - Linux：`~/.local/share/applications/spark-dsh.desktop`，桌面副本和 `~/.local/bin/spark-dsh`。
 
 双击后浏览器打开 `http://127.0.0.1:18090/`。第一次需要登录 spark 门户（Linux 用户名 + 密码）；之后 12 小时内直接进入 DSH。
+
+## iPad 访问：用常开的 Windows 电脑做网关
+
+iPadOS 不能运行安装器里的 `.command` / `.bat` / `.sh`，但可以把一台常开的 Windows 电脑当成局域网网关：
+
+```text
+iPad Safari ──同一 Wi-Fi──> Windows 10.0.0.50:18091
+                                   │ portproxy
+                                   ▼
+                         127.0.0.1:18090（Spark DSH 隧道）
+                                   │ SSH
+                                   ▼
+                         spark 上的 127.0.0.1:8090
+```
+
+### 1. 在 Windows 上正常安装
+
+用 [install.html](install.html) 生成 Windows 安装包并运行，确认双击桌面的 **Spark DSH** 后，本机浏览器能打开 `http://127.0.0.1:18090/`。
+
+### 2. 运行网关脚本
+
+通用 ZIP 里带有 `spark-ipad-gateway.ps1`。解压后，在 Windows 上打开 **管理员 PowerShell**，进入解压目录执行：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\spark-ipad-gateway.ps1
+```
+
+也可以直接双击脚本；脚本发现没有管理员权限时会自动请求 UAC。它会：
+
+- 用 Windows 自带的 `portproxy` 增加 `0.0.0.0:18091 → 127.0.0.1:18090`；
+- 增加只允许 **本地子网** 的防火墙规则；
+- 打印并写入 `%LOCALAPPDATA%\SparkDSH\ipad-urls.txt`。
+
+**为什么是 18091**：18090 已经被 SSH 隧道占用，不能再让 portproxy 监听同一个端口；iPad 访问 18091，Windows 再把它转到 18090。
+
+### 3. iPad 打开
+
+让 iPad 和 Windows 连同一个 Wi-Fi / 局域网，在 Safari 打开脚本打印的地址，例如：
+
+```text
+http://192.168.1.50:18091/
+```
+
+用 spark 的 Linux 用户名和密码登录即可。可点 Safari 的 **分享 → 添加到主屏幕**，以后像 App 一样打开。
+
+### 4. 保持可用
+
+- Windows 电源设置里关闭睡眠，或至少设置“接通电源时永不休眠”；
+- EasyConnect 要保持连接；VPN 断开后，SSH 隧道需要重新双击 **Spark DSH**；
+- 把桌面的 **Spark DSH** 快捷方式复制到 `shell:startup`，登录 Windows 后自动建立隧道；
+- 如果 Windows 的当前网络被识别为“公用网络”，防火墙规则不会生效；改成“专用网络”，或确认脚本的 `Private,Domain` 配置；
+- iPad 用蜂窝网络、访客 Wi-Fi（开启 AP 隔离）或不同子网时无法访问。
+
+### 5. 撤销
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\spark-ipad-gateway.ps1 -Remove
+```
+
+只删除 18091 的 portproxy 和防火墙规则，不影响 Spark DSH 本身的隧道。
+
+> 安全边界：18091 只允许本地子网访问，门户仍然需要登录；不要在路由器上把 18091 映射到公网，也不要在不可信的 Wi-Fi 上开启。局域网内是 HTTP 明文，只适合可信的院内 / 家庭网络。
 
 ## 三种连接方式
 
@@ -225,7 +287,7 @@ chmod +x ~/Desktop/spark-dsh.desktop
 
 ### 需要管理员权限吗？会上传患者数据吗？
 
-不需要管理员权限。所有文件都在用户目录；数据始终留在 spark 服务器，本机只建立 SSH 隧道。安装器和启动器不会把数据发到院外，也不会收集密码。
+基础安装不需要管理员权限，所有文件都在用户目录；只有可选的 iPad 网关需要管理员添加防火墙规则。数据始终留在 spark 服务器，本机只建立 SSH 隧道。安装器和启动器不会把数据发到院外，也不会收集密码。
 
 ## 安全说明
 
@@ -272,9 +334,10 @@ src/installer/
   unix.mjs                   macOS / Linux 安装器与启动器
   windows.mjs                Windows 安装器与启动器
   zip.mjs                    无依赖 ZIP 写入器
-  bundle.mjs                 三平台文件与 zip 组装
+  bundle.mjs                 三平台文件、iPad 网关脚本与 zip 组装
   ui.mjs                     浏览器交互
 assets/                      图标（PNG / ICO）
+tools/                       spark-ipad-gateway.ps1（Windows 局域网网关）
 tests/                       Node + Python 测试
 legacy/                      旧版 Python 向导，仅存档
 ```

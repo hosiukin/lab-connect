@@ -37,7 +37,7 @@
       <p class="lede">在你的电脑上生成一个安装包。运行后自动完成 SSH 密钥、跳板机配置、隧道和桌面图标；以后双击 <b>Spark DSH</b>，直接打开服务器上的 DSH，内置数据集和技能已经准备好。</p>
       <div class="hero-badges">
         <span>macOS / Windows / Linux</span>
-        <span>无需管理员权限</span>
+        <span>基础安装免管理员</span>
         <span>不收集密码</span>
       </div>
     </div>
@@ -245,6 +245,7 @@
       <details><summary>门户要求登录 / 登录后回到登录页</summary><p>用 spark 的 Linux 账号和密码登录，不是工号或邮箱。Cookie 有效期为 12 小时；清除浏览器 Cookie 或换浏览器后需要重新登录。</p></details>
       <details><summary>怎么停止隧道或卸载</summary><p>macOS / Linux 运行 <code>~/.spark-dsh/uninstall.sh</code>；Windows 运行 <code>%LOCALAPPDATA%\SparkDSH\stop-tunnel.ps1</code>，再删除桌面快捷方式和该文件夹。卸载会移除 <code>~/.ssh/config</code> 中的受管区块，但保留密钥。</p></details>
       <details><summary>需要管理员权限吗？会上传患者数据吗？</summary><p>不需要管理员权限，全部安装在用户目录。数据始终留在 spark 服务器，本机只建立 SSH 隧道；安装器和启动器都不会把数据发到院外。</p></details>
+      <details><summary>iPad 能直接连接吗？</summary><p>iPadOS 不能运行安装脚本。最简单的方式是把一台常开的 Windows 电脑做网关：先正常安装并双击 Spark DSH，再从 ZIP 运行 <code>spark-ipad-gateway.ps1</code>（会自动请求管理员权限），让 iPad 和电脑连同一个 Wi-Fi，用脚本打印的 <code>电脑局域网 IP:18091</code> 访问。脚本只放行本地子网；不要映射到公网。</p></details>
     </div>
   </section>
 

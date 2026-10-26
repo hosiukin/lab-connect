@@ -154,7 +154,7 @@ test("zip bundle: four files, correct modes, UTF-8 readme", () => {
   assert.equal(files[1].mode, 0o755);
   assert.equal(files[2].mode, 0o644);
   const readme = files[3].text;
-  for (const word of ["macOS", "Windows", "Linux", "卸载", "不会收集"]) assert.ok(readme.includes(word));
+  for (const word of ["macOS", "Windows", "Linux", "iPad", "卸载", "不会收集"]) assert.ok(readme.includes(word));
 
   const zip = installerZip(cfg, {png: "", ico: ""}, new Date("2026-01-02T03:04:05Z"));
   const dir = mkdtempSync(join(tmpdir(), "spark-zip-"));
@@ -170,6 +170,32 @@ test("zip bundle: four files, correct modes, UTF-8 readme", () => {
   assert.equal(statSync(join(extract, "spark-install.command")).mode & 0o777, 0o755);
   assert.equal(statSync(join(extract, "spark-install.sh")).mode & 0o777, 0o755);
   assert.ok(readFileSync(join(extract, "README.txt"), "utf8").includes("Spark DSH"));
+});
+
+test("optional iPad gateway is bundled with BOM and CRLF", () => {
+  const cfg = withDefaults(base);
+  const gateway = "# test gateway\r\nWrite-Host 'ok'\r\n";
+  const files = installerFiles(cfg, {png: "", ico: "", gateway}, new Date("2026-01-02T03:04:05Z"));
+  assert.deepEqual(files.map((f) => f.name), [
+    "spark-install.command",
+    "spark-install.sh",
+    "spark-install.bat",
+    "spark-ipad-gateway.ps1",
+    "README.txt",
+  ]);
+  const file = files[3];
+  assert.equal(file.mode, 0o644);
+  assert.ok(file.text.startsWith("\uFEFF"));
+  assert.equal(file.text.slice(1), gateway);
+  assert.ok(files[4].text.includes("spark-ipad-gateway.ps1"));
+
+  const zip = installerZip(cfg, {png: "", ico: "", gateway}, new Date("2026-01-02T03:04:05Z"));
+  const dir = mkdtempSync(join(tmpdir(), "spark-gateway-zip-"));
+  const zipFile = join(dir, "bundle.zip");
+  writeFileSync(zipFile, zip);
+  const list = spawnSync("unzip", ["-Z1", zipFile], {encoding: "utf8"});
+  assert.equal(list.status, 0, list.stderr);
+  assert.deepEqual(list.stdout.trim().split("\n"), files.map((f) => f.name));
 });
 
 test("crc32 and zip writer basics", () => {

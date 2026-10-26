@@ -62,6 +62,7 @@ def main() -> None:
     icons = {
         "png": read_asset("spark-dsh-256.png"),
         "ico": read_asset("spark-dsh.ico"),
+        "gateway": (ROOT / "tools" / "spark-ipad-gateway.ps1").read_text(encoding="utf-8-sig"),
     }
     build_time = dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat()
     js = f"globalThis.SPARK_ICONS = {json.dumps(icons)};\n\n{js}"
