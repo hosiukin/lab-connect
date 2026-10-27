@@ -110,6 +110,14 @@ test("windows installer is a readable PowerShell script", () => {
   assert.match(ps1, /\$sc\.TargetPath = \$powershell/);
   assert.match(ps1, /Start-Process -FilePath \$powershell/);
   assert.match(ps1, /function Invoke-Keygen/);
+  assert.match(ps1, /function Invoke-KeygenCapture/);
+  assert.match(ps1, /'-y', '-P', '', '-f'/);
+  assert.match(ps1, /Move-Item -LiteralPath \$KeyFile -Destination \$backup/);
+  assert.match(ps1, /已校准公钥文件/);
+  assert.match(ps1, /IdentityFile __SPARK_KEY_FILE__/);
+  assert.doesNotMatch(ps1, /IdentityFile ~\/\.ssh/);
+  assert.ok(ps1.includes("$KeyFile.Replace('\\', '/')"));
+  assert.match(ps1, /chmod 600 ~\/\.ssh\/authorized_keys/);
   assert.match(ps1, /'-N', '', '-C'/);
   assert.doesNotMatch(ps1, /-N '""'/);
   assert.match(ps1, /if \(\$null -eq \$existing\)/);

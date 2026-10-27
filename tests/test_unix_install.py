@@ -171,6 +171,91 @@ writeFileSync(process.argv[1], buildUnixInstaller(cfg, icons));
         self.assertFalse((self.home / ".spark-dsh").exists())
 
 
+    def _make_key(self, key: Path, passphrase: str = "") -> None:
+        subprocess.run(
+            ["ssh-keygen", "-q", "-t", "ed25519", "-N", passphrase, "-C", "test", "-f", str(key)],
+            check=True,
+            capture_output=True,
+        )
+
+    def test_valid_key_with_open_permissions_is_reused(self) -> None:
+        key = self.home / ".ssh" / "id_ed25519_spark"
+        self._make_key(key)
+        key.chmod(0o644)
+        script = self.tmp / "install.sh"
+        self._generate({"sparkUser": "alice", "jumpUser": "alice"}, script)
+        result = self._run(script)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("复用已有密钥", result.stdout)
+        self.assertEqual(stat.S_IMODE(key.stat().st_mode), 0o600)
+        self.assertFalse(list(key.parent.glob("id_ed25519_spark.bak.*")))
+
+    def test_stale_public_key_is_rebuilt_from_private_key(self) -> None:
+        key = self.home / ".ssh" / "id_ed25519_spark"
+        self._make_key(key)
+        pub = Path(str(key) + ".pub")
+        pub.write_text("ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFakeKey test\n", encoding="utf-8")
+        script = self.tmp / "install.sh"
+        self._generate({"sparkUser": "alice", "jumpUser": "alice"}, script)
+        result = self._run(script)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        expected = subprocess.check_output(
+            ["ssh-keygen", "-y", "-P", "", "-f", str(key)], text=True
+        ).strip()
+        self.assertEqual(pub.read_text(encoding="utf-8").strip(), expected)
+        self.assertIn("已校准公钥文件", result.stdout)
+        self.assertTrue(list(key.parent.glob("id_ed25519_spark.pub.bak.*")))
+
+    def test_encrypted_custom_key_is_not_overwritten(self) -> None:
+        key = self.tmp / "custom_spark_key"
+        self._make_key(key, "secret")
+        before = key.read_bytes()
+        script = self.tmp / "install.sh"
+        self._generate(
+            {"sparkUser": "alice", "jumpUser": "alice", "keyFile": str(key)}, script
+        )
+        result = self._run(script)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("无法无口令读取", result.stdout + result.stderr)
+        self.assertEqual(key.read_bytes(), before)
+
+    def test_encrypted_default_key_is_backed_up_and_regenerated(self) -> None:
+        key = self.home / ".ssh" / "id_ed25519_spark"
+        self._make_key(key, "secret")
+        script = self.tmp / "install.sh"
+        self._generate({"sparkUser": "alice", "jumpUser": "alice"}, script)
+        result = self._run(script)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("已备份为", result.stdout)
+        self.assertTrue(list(key.parent.glob("id_ed25519_spark.bak.*")))
+        check = subprocess.run(
+            ["ssh-keygen", "-y", "-P", "", "-f", str(key)],
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(check.returncode, 0, check.stderr)
+
+    def test_broken_default_key_is_backed_up_and_regenerated(self) -> None:
+        key = self.home / ".ssh" / "id_ed25519_spark"
+        key.write_text("this is not a private key\n", encoding="utf-8")
+        Path(str(key) + ".pub").write_text("stale public key\n", encoding="utf-8")
+        script = self.tmp / "install.sh"
+        self._generate({"sparkUser": "alice", "jumpUser": "alice"}, script)
+        result = self._run(script)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("已备份为", result.stdout)
+        self.assertTrue(list(key.parent.glob("id_ed25519_spark.bak.*")))
+        check = subprocess.run(
+            ["ssh-keygen", "-y", "-P", "", "-f", str(key)],
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(check.returncode, 0, check.stderr)
+        self.assertEqual(
+            Path(str(key) + ".pub").read_text(encoding="utf-8").strip(),
+            check.stdout.strip(),
+        )
+
     def test_embedded_icon_is_decoded(self) -> None:
         png = (ROOT / "assets" / "spark-dsh-256.png").read_bytes()
         script = self.tmp / "install.sh"

@@ -266,6 +266,21 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\spark-install.ps1
 - macOS / Linux：`~/.spark-dsh/launcher.log`
 - Windows：`%LOCALAPPDATA%\SparkDSH\launcher.log`
 
+### 显示“复用已有密钥”，但提示密钥错误
+
+新版安装器会先校验私钥能否用空口令读取，并把 `.pub` 和私钥重新比对：
+
+- 如果默认路径 `~/.ssh/id_ed25519_spark` 的私钥损坏或带口令，安装器会把它备份成 `id_ed25519_spark.bak.<时间>`，然后自动生成新的 spark 专用密钥；
+- 如果只是 `.pub` 过期或不匹配，安装器会用私钥重新生成 `.pub`，不会覆盖私钥；
+- 从别的电脑拷来的私钥如果权限过宽，安装器会先收紧权限（macOS / Linux 为 `chmod 600`，Windows 限制 ACL）再验证；
+- 如果私钥路径是你自定义的，安装器不会擅自覆盖。请换一个新路径，或先去掉口令：
+
+```bash
+ssh-keygen -p -N '' -f ~/.ssh/id_ed25519_spark
+```
+
+重新运行安装器后，旧的 `.pub` 不会再被拿去部署。
+
 ### Permission denied (publickey)
 
 公钥没有部署成功。把 `~/.ssh/id_ed25519_spark.pub` 的内容导入医院门户的 SSH 公钥设置，或重新运行安装器并输入密码。不要删除私钥。

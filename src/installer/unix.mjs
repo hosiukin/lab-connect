@@ -222,17 +222,56 @@ KEY_DIR=$(dirname "$KEY_FILE")
 mkdir -p "$KEY_DIR" 2>/dev/null || true
 chmod 700 "$KEY_DIR" 2>/dev/null || true
 
+KEY_IS_DEFAULT=0
+if [ "$KEY_FILE" = "$HOME/.ssh/id_ed25519_spark" ]; then
+  KEY_IS_DEFAULT=1
+fi
+
+key_public=""
 if [ -f "$KEY_FILE" ]; then
-  log "复用已有密钥：$KEY_FILE"
-else
+  # A key copied from another computer often keeps mode 0644; OpenSSH then
+  # refuses to load it. Tighten permissions before probing the key.
+  chmod 600 "$KEY_FILE" 2>/dev/null || true
+  # -P '' makes ssh-keygen fail instead of prompting when an old key has a
+  # passphrase, so the installer can recover instead of hanging.
+  if key_public=$(ssh-keygen -y -P '' -f "$KEY_FILE" 2>/dev/null); then
+    log "复用已有密钥：$KEY_FILE"
+  else
+    if [ "$KEY_IS_DEFAULT" -eq 1 ]; then
+      backup="$KEY_FILE.bak.$(date '+%Y%m%d-%H%M%S')"
+      mv "$KEY_FILE" "$backup" || die "备份旧密钥失败：$backup"
+      if [ -f "$KEY_FILE.pub" ]; then
+        mv "$KEY_FILE.pub" "$backup.pub" || true
+      fi
+      log "已有密钥无法无口令读取（可能带口令或已损坏），已备份为：$backup"
+      log "将生成新的 spark 专用密钥"
+    else
+      die "已有密钥无法无口令读取：$KEY_FILE。请换一个私钥路径，或先运行 ssh-keygen -p -f $KEY_FILE 去掉口令后重试。"
+    fi
+  fi
+fi
+
+if [ ! -f "$KEY_FILE" ]; then
   log "生成新密钥：$KEY_FILE"
   ssh-keygen -q -t ed25519 -N '' -C "spark-dsh@$(hostname 2>/dev/null || echo local)" -f "$KEY_FILE" || die "生成密钥失败。"
+  key_public=$(ssh-keygen -y -P '' -f "$KEY_FILE") || die "读取新公钥失败。"
 fi
-if [ ! -f "$KEY_FILE.pub" ]; then
-  ssh-keygen -y -f "$KEY_FILE" >"$KEY_FILE.pub" || die "读取公钥失败。"
+if [ -z "$key_public" ]; then
+  key_public=$(ssh-keygen -y -P '' -f "$KEY_FILE") || die "读取公钥失败（密钥可能带口令）。"
+fi
+
+# A stale .pub from an older key makes every server reject the key. Rebuild it
+# from the private key whenever it is missing or does not match.
+if [ ! -f "$KEY_FILE.pub" ] || [ "$(cat "$KEY_FILE.pub")" != "$key_public" ]; then
+  if [ -f "$KEY_FILE.pub" ]; then
+    cp -p "$KEY_FILE.pub" "$KEY_FILE.pub.bak.$(date '+%Y%m%d-%H%M%S')" 2>/dev/null || true
+  fi
+  printf '%s\\n' "$key_public" >"$KEY_FILE.pub" || die "写入公钥失败。"
+  log "已校准公钥文件：$KEY_FILE.pub"
 fi
 chmod 600 "$KEY_FILE" 2>/dev/null || true
 chmod 644 "$KEY_FILE.pub" 2>/dev/null || true
+log "密钥指纹：$(ssh-keygen -lf "$KEY_FILE.pub" 2>/dev/null || echo unknown)"
 
 # ---------------------------------------------------------------- 2. SSH 配置
 mkdir -p "$HOME/.ssh" 2>/dev/null || true
@@ -276,7 +315,7 @@ deploy_key() {
     ssh-copy-id -i "$KEY_FILE.pub" -o StrictHostKeyChecking=accept-new -o ConnectTimeout=20 "$alias" || return 1
   else
     ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=20 "$alias" \\
-      'umask 077; mkdir -p ~/.ssh; touch ~/.ssh/authorized_keys; cat >> ~/.ssh/authorized_keys' \\
+      'umask 077; mkdir -p ~/.ssh; chmod 700 ~/.ssh; touch ~/.ssh/authorized_keys; chmod 600 ~/.ssh/authorized_keys; cat >> ~/.ssh/authorized_keys' \\
       <"$KEY_FILE.pub" || return 1
   fi
   key_works "$alias"

@@ -211,20 +211,40 @@ if (-not (Test-Path $keygen)) {
 }
 Write-Log ('SSH 客户端：' + $ssh)
 
-function Invoke-Keygen([string[]]$Arguments) {
-  $psi = New-Object System.Diagnostics.ProcessStartInfo
-  $psi.FileName = $keygen
-  $psi.UseShellExecute = $false
-  # Build the command line ourselves so the empty -N value survives PowerShell's
-  # native-argument handling on both Windows PowerShell 5.1 and PowerShell 7.
-  $psi.Arguments = ($Arguments | ForEach-Object {
+function ConvertTo-KeygenCommandLine([string[]]$Arguments) {
+  # Build the command line ourselves so empty values such as -N '' and -P ''
+  # survive PowerShell's native-argument handling on both Windows PowerShell 5.1
+  # and PowerShell 7.
+  return ($Arguments | ForEach-Object {
     if ($_ -eq '') { '""' }
     elseif ($_ -match '[\\s"]') { '"' + ($_ -replace '"', '\\"') + '"' }
     else { $_ }
   }) -join ' '
+}
+
+function Invoke-Keygen([string[]]$Arguments) {
+  $psi = New-Object System.Diagnostics.ProcessStartInfo
+  $psi.FileName = $keygen
+  $psi.UseShellExecute = $false
+  $psi.Arguments = ConvertTo-KeygenCommandLine $Arguments
   $p = [System.Diagnostics.Process]::Start($psi)
   $p.WaitForExit()
   return $p.ExitCode
+}
+
+function Invoke-KeygenCapture([string[]]$Arguments) {
+  $psi = New-Object System.Diagnostics.ProcessStartInfo
+  $psi.FileName = $keygen
+  $psi.UseShellExecute = $false
+  $psi.CreateNoWindow = $true
+  $psi.RedirectStandardOutput = $true
+  $psi.RedirectStandardError = $true
+  $psi.Arguments = ConvertTo-KeygenCommandLine $Arguments
+  $p = [System.Diagnostics.Process]::Start($psi)
+  $out = $p.StandardOutput.ReadToEnd()
+  $err = $p.StandardError.ReadToEnd()
+  $p.WaitForExit()
+  return [pscustomobject]@{ Code = $p.ExitCode; Out = $out; Err = $err }
 }
 
 # ---------------------------------------------------------------- key
@@ -234,16 +254,75 @@ $KeyFile = $KeyFile -replace '/', '\\'
 $keyDir = Split-Path $KeyFile -Parent
 New-Item -ItemType Directory -Force -Path $keyDir | Out-Null
 
-if (-not (Test-Path $KeyFile)) {
+$DefaultKeyFile = ($Cfg.keyFile -eq '~/.ssh/id_ed25519_spark')
+$keyPublic = ''
+if (Test-Path -LiteralPath $KeyFile -PathType Leaf) {
+  # A key copied from another PC can retain an inherited ACL that Windows
+  # OpenSSH rejects. Restrict it to the current user before probing it.
+  try {
+    $me = [System.Security.Principal.WindowsIdentity]::GetCurrent().Name
+    & icacls $KeyFile /inheritance:r /grant:r ($me + ':F') 2>$null | Out-Null
+  } catch {}
+  # -P '' makes ssh-keygen fail instead of prompting when an old key has a
+  # passphrase, so the installer can recover instead of hanging.
+  $probe = Invoke-KeygenCapture @('-y', '-P', '', '-f', $KeyFile)
+  if ($probe.Code -eq 0 -and $probe.Out.Trim()) {
+    $keyPublic = $probe.Out.Trim()
+    Write-Log ('复用已有密钥：' + $KeyFile)
+  } else {
+    $reason = (($probe.Err -replace '\\s+', ' ').Trim())
+    if ($DefaultKeyFile) {
+      $stamp = Get-Date -Format 'yyyyMMdd-HHmmss-fff'
+      $backup = $KeyFile + '.bak.' + $stamp
+      Move-Item -LiteralPath $KeyFile -Destination $backup
+      if (Test-Path -LiteralPath ($KeyFile + '.pub') -PathType Leaf) {
+        Move-Item -LiteralPath ($KeyFile + '.pub') -Destination ($backup + '.pub')
+      }
+      Write-Log ('已有密钥无法无口令读取（可能带口令或已损坏），已备份为：' + $backup)
+      if ($reason) { Write-Log ('ssh-keygen：' + $reason) }
+    } else {
+      Fail ('已有密钥无法无口令读取：' + $KeyFile + '。请换一个私钥路径，或先运行 ssh-keygen -p -f "' + $KeyFile + '" 去掉口令后重试。')
+    }
+  }
+}
+
+if (-not (Test-Path -LiteralPath $KeyFile -PathType Leaf)) {
   Write-Log ('生成密钥：' + $KeyFile)
   $rc = Invoke-Keygen @('-q', '-t', 'ed25519', '-N', '', '-C', ("spark-dsh@" + $env:COMPUTERNAME), '-f', $KeyFile)
   if ($rc -ne 0) { Fail '生成 SSH 密钥失败。' }
-} else {
-  Write-Log '复用已有密钥'
+  $probe = Invoke-KeygenCapture @('-y', '-P', '', '-f', $KeyFile)
+  if ($probe.Code -ne 0) { Fail ('读取新公钥失败：' + $probe.Err) }
+  $keyPublic = $probe.Out.Trim()
 }
-if (-not (Test-Path ($KeyFile + '.pub'))) {
-  & $keygen -y -f $KeyFile > ($KeyFile + '.pub')
-  if ($LASTEXITCODE -ne 0) { Fail '读取公钥失败（密钥可能带口令）。' }
+if (-not $keyPublic) {
+  $probe = Invoke-KeygenCapture @('-y', '-P', '', '-f', $KeyFile)
+  if ($probe.Code -ne 0) { Fail ('读取公钥失败（密钥可能带口令）：' + $probe.Err) }
+  $keyPublic = $probe.Out.Trim()
+}
+
+# A stale .pub from another key makes every server reject this key. Rebuild it
+# from the private key whenever it is missing or does not match.
+$pubPath = $KeyFile + '.pub'
+$oldPub = ''
+if (Test-Path -LiteralPath $pubPath -PathType Leaf) {
+  try { $oldPub = [string](Get-Content -LiteralPath $pubPath -Raw) } catch { $oldPub = '' }
+}
+if ($oldPub.Trim() -ne $keyPublic) {
+  if ($oldPub) {
+    $pubBackup = $pubPath + '.bak.' + (Get-Date -Format 'yyyyMMdd-HHmmss-fff')
+    Copy-Item -LiteralPath $pubPath -Destination $pubBackup
+    Write-Log ('原公钥文件已备份：' + $pubBackup)
+  }
+  try {
+    [IO.File]::WriteAllText($pubPath, $keyPublic + [Environment]::NewLine, (New-Object System.Text.UTF8Encoding($false)))
+  } catch {
+    Fail ('写入公钥失败：' + $_.Exception.Message)
+  }
+  Write-Log ('已校准公钥文件：' + $pubPath)
+}
+$fingerprint = & $keygen -l -f $pubPath 2>$null
+if ($LASTEXITCODE -eq 0 -and $fingerprint) {
+  Write-Log ('密钥指纹：' + (($fingerprint -join ' ').Trim()))
 }
 
 # ---------------------------------------------------------------- ssh config
@@ -251,7 +330,8 @@ $SshDir = Join-Path $env:USERPROFILE '.ssh'
 New-Item -ItemType Directory -Force -Path $SshDir | Out-Null
 $ConfigPath = Join-Path $SshDir 'config'
 $block = @'
-${buildWindowsConfigBlock(cfg)}'@
+${buildWindowsConfigBlock(cfg, '__SPARK_KEY_FILE__')}'@
+$block = $block.Replace('__SPARK_KEY_FILE__', $KeyFile.Replace('\\', '/'))
 $existing = ''
 if (Test-Path $ConfigPath) {
   Copy-Item $ConfigPath (Join-Path $AppHome ('ssh-config.backup.' + (Get-Date -Format 'yyyyMMdd-HHmmss')))
@@ -266,14 +346,18 @@ Write-Log '已写入 SSH 配置'
 
 # ---------------------------------------------------------------- deploy key
 function Test-KeyAuth([string]$Alias) {
-  & $ssh -o BatchMode=yes -o ConnectTimeout=12 -o StrictHostKeyChecking=accept-new $Alias true 2>$null
-  return ($LASTEXITCODE -eq 0)
+  $authOut = & $ssh -o BatchMode=yes -o ConnectTimeout=12 -o StrictHostKeyChecking=accept-new $Alias true 2>&1
+  if ($LASTEXITCODE -eq 0) { return $true }
+  if ($authOut) {
+    Write-Log ('免密认证失败（' + $Alias + '）：' + (($authOut | Out-String).Trim()))
+  }
+  return $false
 }
 
 function Deploy-Key([string]$Alias) {
   if (Test-KeyAuth $Alias) { Write-Log ('免密登录已可用：' + $Alias); return $true }
   Write-Log ('为 ' + $Alias + ' 部署公钥，接下来会提示输入该账号密码')
-  $remote = 'umask 077; mkdir -p ~/.ssh; touch ~/.ssh/authorized_keys; cat >> ~/.ssh/authorized_keys'
+  $remote = 'umask 077; mkdir -p ~/.ssh; chmod 700 ~/.ssh; touch ~/.ssh/authorized_keys; chmod 600 ~/.ssh/authorized_keys; cat >> ~/.ssh/authorized_keys'
   try {
     Get-Content ($KeyFile + '.pub') -Raw | & $ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=20 $Alias $remote
   } catch {
@@ -388,9 +472,9 @@ Write-Log ('日志：' + (Join-Path $AppHome 'launcher.log'))
 `;
 }
 
-function buildWindowsConfigBlock(cfg) {
+function buildWindowsConfigBlock(cfg, keyFile = cfg.keyFile) {
   const common = [
-    `    IdentityFile ${cfg.keyFile}`,
+    `    IdentityFile ${keyFile}`,
     "    IdentitiesOnly yes",
     "    ServerAliveInterval 30",
     "    ServerAliveCountMax 6",
