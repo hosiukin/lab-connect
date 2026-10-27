@@ -95,50 +95,77 @@ test("unix launcher opens the tunnel URL and is idempotent", () => {
   assert.equal(check.status, 0, check.stderr);
 });
 
-test("windows installer embeds exactly one payload and one launcher", () => {
+test("windows installer is a readable PowerShell script", () => {
   const cfg = withDefaults(base);
-  const bat = buildWindowsInstaller(cfg, {ico: ""});
-  assert.ok(bat.startsWith("@echo off"));
-  assert.equal(bat.split("#SPARK_PS_BEGIN").length, 2);
-  assert.equal(bat.split("#SPARK_PS_END").length, 2);
-  assert.equal(bat.split("#SPARK_LAUNCHER_BEGIN").length, 2);
-  assert.equal(bat.split("#SPARK_LAUNCHER_END").length, 2);
-  assert.ok(bat.indexOf("#SPARK_PS_BEGIN") > bat.indexOf("powershell.exe"));
-  assert.ok(bat.indexOf("#SPARK_PS_END") > 1000);
-  assert.ok(bat.indexOf("#SPARK_LAUNCHER_BEGIN") > bat.indexOf("#SPARK_PS_END"));
-  assert.ok(bat.includes("'#SPARK_PS'+'_BEGIN'"));
-  assert.ok(bat.includes("'#SPARK_LAUNCHER_' + 'BEGIN'"));
-  assert.match(bat, /function Invoke-Keygen/);
-  assert.match(bat, /'-N', '', '-C'/);
-  assert.doesNotMatch(bat, /-N '""'/);
-  assert.match(bat, /if \(\$null -eq \$existing\)/);
-  assert.match(bat, /\$IconB64 = @'/);
-  assert.match(bat, /uninstall\.ps1/);
-  assert.match(bat, /uninstall\.bat/);
-  assert.match(bat, /ProcessName -eq 'ssh'/);
-  assert.ok(bat.split(/\r?\n/).every((line) => line.length < 8000), "batch lines must stay below cmd's limit");
+  const ps1 = buildWindowsInstaller(cfg, {ico: ""});
+  assert.ok(ps1.startsWith("# Spark DSH Windows installer"));
+  assert.match(ps1, /^#Requires -Version 5\.1$/m);
+  assert.doesNotMatch(ps1, /@echo off/);
+  assert.doesNotMatch(ps1, /wscript\.exe/i);
+  assert.doesNotMatch(ps1, /launch\.vbs/i);
+  assert.doesNotMatch(ps1, /uninstall\.bat/i);
+  assert.doesNotMatch(ps1, /\.bat\b/i);
+  assert.doesNotMatch(ps1, /\.vbs\b/i);
+  assert.match(ps1, /spark-install\.ps1/);
+  assert.match(ps1, /\$sc\.TargetPath = \$powershell/);
+  assert.match(ps1, /Start-Process -FilePath \$powershell/);
+  assert.match(ps1, /function Invoke-Keygen/);
+  assert.match(ps1, /'-N', '', '-C'/);
+  assert.doesNotMatch(ps1, /-N '""'/);
+  assert.match(ps1, /if \(\$null -eq \$existing\)/);
+  assert.match(ps1, /\$IconB64 = @'/);
+  assert.match(ps1, /uninstall\.ps1/);
+  assert.match(ps1, /ProcessName -eq 'ssh'/);
+  assert.match(ps1, /ProxyJump spark-jump/);
+  assert.match(ps1, /HostName 10\.30\.24\.1/);
+  assert.ok(ps1.split(/\r?\n/).every((line) => line.length < 8000));
 
   const ico = readFileSync(new URL("../assets/spark-dsh.ico", import.meta.url)).toString("base64");
   const withIcon = buildWindowsInstaller(cfg, {ico});
   const block = withIcon.match(/\$IconB64 = @'\n([\s\S]*?)\n'@/);
   assert.ok(block, "icon block must be present");
   assert.equal(Buffer.from(block[1].replace(/\s/g, ""), "base64").toString("base64"), ico);
-  assert.ok(withIcon.split(/\r?\n/).every((line) => line.length < 8000));
 
-  const cfgStart = bat.indexOf("$Cfg = @'");
-  const cfgEnd = bat.indexOf("'@", cfgStart);
-  const json = bat.slice(cfgStart + "$Cfg = @'".length, cfgEnd).trim();
+  const cfgStart = ps1.indexOf("$Cfg = @'\n");
+  const cfgEnd = ps1.indexOf("\n'@", cfgStart);
+  assert.ok(cfgStart >= 0 && cfgEnd > cfgStart, "config here-string must be present");
+  const json = ps1.slice(cfgStart + "$Cfg = @'\n".length, cfgEnd).trim();
   const parsed = JSON.parse(json);
   assert.equal(parsed.sparkUser, "alice");
+  assert.equal(parsed.mode, "jump");
+  assert.equal(parsed.jumpHost, "10.30.24.1");
   assert.equal(parsed.localPort, 18090);
 
-  const launcherStart = bat.indexOf("#SPARK_LAUNCHER_BEGIN") + "#SPARK_LAUNCHER_BEGIN".length;
-  const launcherEnd = bat.indexOf("#SPARK_LAUNCHER_END");
-  const launcher = bat.slice(launcherStart, launcherEnd).trim();
+  const token = "$launcherText = @'\n";
+  const launcherStart = ps1.indexOf(token);
+  const launcherEnd = ps1.indexOf("\n'@", launcherStart);
+  assert.ok(launcherStart >= 0 && launcherEnd > launcherStart, "launcher here-string must be present");
+  const launcher = ps1.slice(launcherStart + token.length, launcherEnd);
+  assert.equal(launcher.trimEnd(), buildWindowsLauncher(cfg).trimEnd());
   assert.ok(launcher.startsWith("$ErrorActionPreference"));
   assert.ok(launcher.includes("tunnel.pid"));
   assert.ok(launcher.includes("$sshArgs"));
   assert.ok(!launcher.includes("$args ="));
+  assert.ok(!launcher.includes("\n'@"), "launcher must not contain a nested here-string terminator");
+
+  const tmp = mkdtempSync(join(tmpdir(), "spark-ps1-"));
+  const file = join(tmp, "spark-install.ps1");
+  writeFileSync(file, "\uFEFF" + ps1);
+  const path = file.replace(/'/g, "''");
+  const command =
+    "$e=$null; [System.Management.Automation.Language.Parser]::ParseFile('" + path + "',[ref]$null,[ref]$e)>$null; " +
+    "if($e){$e|% Message; exit 1}";
+  const pwsh = spawnSync("pwsh", ["-NoLogo", "-NoProfile", "-Command", command], {encoding: "utf8"});
+  if (!pwsh.error) assert.equal(pwsh.status, 0, pwsh.stderr || pwsh.stdout);
+
+  const launcherFile = join(tmp, "launch.ps1");
+  writeFileSync(launcherFile, "\uFEFF" + launcher);
+  const launcherCommand =
+    "$e=$null; [System.Management.Automation.Language.Parser]::ParseFile('" +
+    launcherFile.replace(/'/g, "''") +
+    "',[ref]$null,[ref]$e)>$null; if($e){$e|% Message; exit 1}";
+  const launcherParse = spawnSync("pwsh", ["-NoLogo", "-NoProfile", "-Command", launcherCommand], {encoding: "utf8"});
+  if (!launcherParse.error) assert.equal(launcherParse.status, 0, launcherParse.stderr || launcherParse.stdout);
 });
 
 test("zip bundle: four files, correct modes, UTF-8 readme", () => {
@@ -147,12 +174,14 @@ test("zip bundle: four files, correct modes, UTF-8 readme", () => {
   assert.deepEqual(files.map((f) => f.name), [
     "spark-install.command",
     "spark-install.sh",
-    "spark-install.bat",
+    "spark-install.ps1",
     "README.txt",
   ]);
   assert.equal(files[0].mode, 0o755);
   assert.equal(files[1].mode, 0o755);
   assert.equal(files[2].mode, 0o644);
+  assert.ok(files[2].text.startsWith("\uFEFF"));
+  assert.ok(files[2].text.includes("# Spark DSH Windows installer"));
   const readme = files[3].text;
   for (const word of ["macOS", "Windows", "Linux", "iPad", "卸载", "不会收集"]) assert.ok(readme.includes(word));
 
@@ -169,6 +198,10 @@ test("zip bundle: four files, correct modes, UTF-8 readme", () => {
   assert.equal(unzip.status, 0, unzip.stderr);
   assert.equal(statSync(join(extract, "spark-install.command")).mode & 0o777, 0o755);
   assert.equal(statSync(join(extract, "spark-install.sh")).mode & 0o777, 0o755);
+  assert.equal(statSync(join(extract, "spark-install.ps1")).mode & 0o777, 0o644);
+  const winScript = readFileSync(join(extract, "spark-install.ps1"));
+  assert.deepEqual([...winScript.subarray(0, 3)], [0xef, 0xbb, 0xbf]);
+  assert.ok(winScript.toString("utf8").includes("# Spark DSH Windows installer"));
   assert.ok(readFileSync(join(extract, "README.txt"), "utf8").includes("Spark DSH"));
 });
 
@@ -179,7 +212,7 @@ test("optional iPad gateway is bundled with BOM and CRLF", () => {
   assert.deepEqual(files.map((f) => f.name), [
     "spark-install.command",
     "spark-install.sh",
-    "spark-install.bat",
+    "spark-install.ps1",
     "spark-ipad-gateway.ps1",
     "README.txt",
   ]);

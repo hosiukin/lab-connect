@@ -1,7 +1,9 @@
-// Generates the Windows installer (.bat with an embedded PowerShell payload)
-// plus the hidden desktop launcher.
+// Generates the Windows installer as a plain PowerShell .ps1 script, plus the
+// hidden desktop launcher. We deliberately avoid .bat/.vbs wrappers: endpoint
+// security products frequently quarantine batch files, and Windows 11 is
+// retiring VBScript. The installer and launcher are readable PowerShell.
 
-import { jumpAlias, portalUrl, healthUrl } from "./config.mjs";
+import { jumpAlias, portalUrl, healthUrl, psq } from "./config.mjs";
 
 function chunkText(value, width = 76) {
   if (!value) return "";
@@ -31,9 +33,7 @@ function cfgJson(cfg) {
 export function buildWindowsLauncher(cfg) {
   const data = cfgJson(cfg);
   return `$ErrorActionPreference = 'Stop'
-$Cfg = @'
-${data}
-'@ | ConvertFrom-Json
+$Cfg = ${psq(data)} | ConvertFrom-Json
 
 $AppHome = Join-Path $env:LOCALAPPDATA 'SparkDSH'
 $Log = Join-Path $AppHome 'launcher.log'
@@ -151,18 +151,10 @@ Open-Portal
 export function buildWindowsInstaller(cfg, icons = {}) {
   const data = cfgJson(cfg);
   const iconB64 = chunkText(icons.ico || "");
-  return `@echo off
-setlocal
-chcp 65001 >nul 2>nul
-title Spark DSH Installer
-set "SPARK_SELF=%~f0"
-powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -Command "$t=[IO.File]::ReadAllText($env:SPARK_SELF);$b='#SPARK_PS'+'_BEGIN';$e='#SPARK_PS'+'_END';$i=$t.IndexOf($b);$j=$t.IndexOf($e);if($i -lt 0 -or $j -le $i){exit 9};Invoke-Expression $t.Substring($i+$b.Length,$j-$i-$b.Length)"
-set "RC=%ERRORLEVEL%"
-echo.
-if not "%RC%"=="0" echo Installation did not finish. Exit code: %RC%
-pause
-exit /b %RC%
-#SPARK_PS_BEGIN
+  return `# Spark DSH Windows installer
+# Run: powershell -NoProfile -ExecutionPolicy Bypass -File .\\spark-install.ps1
+#Requires -Version 5.1
+
 $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 
@@ -303,17 +295,13 @@ if ($failed.Count -gt 0) {
 }
 
 # ---------------------------------------------------------------- launcher
-$selfText = [IO.File]::ReadAllText($env:SPARK_SELF)
-$lm = '#SPARK_LAUNCHER_' + 'BEGIN'
-$ln = '#SPARK_LAUNCHER_' + 'END'
-$ls = $selfText.IndexOf($lm)
-$le = $selfText.IndexOf($ln)
-if ($ls -lt 0 -or $le -le $ls) { Fail '安装包缺少启动器数据，请重新下载完整的 spark-install.bat。' }
-$launcherText = $selfText.Substring($ls + $lm.Length, $le - $ls - $lm.Length).TrimStart([char[]]@(13, 10))
+# The launcher is embedded as a readable here-string, not Base64 and not a
+# self-extracting shell stub. This keeps the script easy to audit and avoids
+# the legacy command-shell wrapper patterns most often quarantined by endpoint
+# security products.
+$launcherText = @'
+${buildWindowsLauncher(cfg)}'@
 [IO.File]::WriteAllText((Join-Path $AppHome 'launch.ps1'), $launcherText, (New-Object System.Text.UTF8Encoding($true)))
-
-$vbs = 'CreateObject("WScript.Shell").Run "powershell.exe -NoLogo -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File ""' + (Join-Path $AppHome 'launch.ps1') + '""", 0, False'
-[IO.File]::WriteAllText((Join-Path $AppHome 'launch.vbs'), $vbs, [System.Text.Encoding]::Unicode)
 
 $stopPs1 = @'
 $AppHome = Join-Path $env:LOCALAPPDATA 'SparkDSH'
@@ -363,28 +351,21 @@ Write-Host ('请手动删除文件夹：' + $AppHome)
 '@
 [IO.File]::WriteAllText((Join-Path $AppHome 'uninstall.ps1'), $uninstallPs1, (New-Object System.Text.UTF8Encoding($true)))
 
-$uninstallBat = @'
-@echo off
-chcp 65001 >nul 2>nul
-powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%LOCALAPPDATA%\\SparkDSH\\uninstall.ps1"
-pause
-'@
-Set-Content -Path (Join-Path $AppHome 'uninstall.bat') -Value $uninstallBat -Encoding ASCII
-
 if ($IconB64) {
   try {
     [IO.File]::WriteAllBytes((Join-Path $AppHome 'spark-dsh.ico'), [Convert]::FromBase64String($IconB64))
   } catch {}
 }
 
+$powershell = Join-Path $env:SystemRoot 'System32\\WindowsPowerShell\\v1.0\\powershell.exe'
 $ws = New-Object -ComObject WScript.Shell
 $targets = @([Environment]::GetFolderPath('Desktop'), [Environment]::GetFolderPath('Programs'))
 foreach ($dir in $targets) {
   if (-not $dir) { continue }
   try {
     $sc = $ws.CreateShortcut((Join-Path $dir 'Spark DSH.lnk'))
-    $sc.TargetPath = (Join-Path $env:SystemRoot 'System32\\wscript.exe')
-    $sc.Arguments = '//nologo "' + (Join-Path $AppHome 'launch.vbs') + '"'
+    $sc.TargetPath = $powershell
+    $sc.Arguments = '-NoLogo -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File "' + (Join-Path $AppHome 'launch.ps1') + '"'
     $sc.WorkingDirectory = $AppHome
     $sc.Description = '打开 spark 服务器的 DSH 助手'
     $icon = Join-Path $AppHome 'spark-dsh.ico'
@@ -397,13 +378,13 @@ foreach ($dir in $targets) {
 }
 
 Write-Log '安装完成，正在打开 spark 门户…'
-Start-Process -FilePath (Join-Path $env:SystemRoot 'System32\\wscript.exe') -ArgumentList @('//nologo', ('"' + (Join-Path $AppHome 'launch.vbs') + '"'))
+Start-Process -FilePath $powershell -ArgumentList @(
+  '-NoLogo', '-NoProfile', '-WindowStyle', 'Hidden',
+  '-ExecutionPolicy', 'Bypass', '-File', ('"' + (Join-Path $AppHome 'launch.ps1') + '"')
+)
 Start-Sleep -Seconds 2
 Write-Log '如果提示登录，请输入 spark 用户名和密码（会话保持 12 小时）。'
 Write-Log ('日志：' + (Join-Path $AppHome 'launcher.log'))
-#SPARK_PS_END
-#SPARK_LAUNCHER_BEGIN
-${buildWindowsLauncher(cfg)}#SPARK_LAUNCHER_END
 `;
 }
 
@@ -446,8 +427,9 @@ export function buildWindowsReadme(cfg) {
     `SSH 别名：${cfg.profile}`,
     `门户地址：${portalUrl(cfg)}`,
     "",
-    "1. 双击 spark-install.bat。",
-    "2. 若出现 SmartScreen 提示，点“更多信息”→“仍要运行”。",
+    "1. 解压后打开 PowerShell，进入解压目录，运行：",
+    "   powershell -NoProfile -ExecutionPolicy Bypass -File .\\spark-install.ps1",
+    "2. 不要双击 .ps1（默认会用记事本打开）。",
     "3. 按提示输入跳板机和 spark 账号密码，用于部署公钥。",
     "4. 安装完成后桌面会出现 Spark DSH 图标。",
     "",

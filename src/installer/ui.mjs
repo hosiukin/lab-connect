@@ -57,7 +57,7 @@ function setOs(os, remember = true) {
   });
   const hints = {
     mac: "将使用 spark-install.command。首次运行请右键 → 打开；或在终端 chmod +x 后运行。",
-    win: "将使用 spark-install.bat。SmartScreen 提示时选“更多信息 → 仍要运行”。",
+    win: "将使用 spark-install.ps1。不要双击；在 PowerShell 里运行：powershell -ExecutionPolicy Bypass -File .\\spark-install.ps1。",
     linux: "将使用 spark-install.sh。终端运行 bash spark-install.sh 即可。",
   };
   els.hint.textContent = hints[os];
@@ -221,7 +221,8 @@ function downloadZip() {
   save();
   const zip = installerZip(cfg, ICONS);
   download(zip, "spark-dsh-installer.zip", "application/zip");
-  toast("安装包已生成。解压后双击 spark-install." + (state.os === "win" ? "bat" : state.os === "linux" ? "sh" : "command"), "ok", 6000);
+  const entry = state.os === "win" ? "ps1（在 PowerShell 中运行）" : state.os === "linux" ? "sh" : "command";
+  toast("安装包已生成。解压后运行 spark-install." + entry, "ok", 7000);
 }
 
 function downloadSingle(os) {
@@ -239,7 +240,7 @@ function downloadSingle(os) {
   if (os === "mac" || os === "linux") {
     toast(`已下载 ${file.name}。若双击没反应，先在终端执行：chmod +x ~/Downloads/${file.name}`, "ok", 9000);
   } else {
-    toast("已下载 spark-install.bat。若被 SmartScreen 拦截，请选“更多信息 → 仍要运行”。", "ok", 8000);
+    toast("已下载 spark-install.ps1。不要双击；在 PowerShell 中运行：powershell -ExecutionPolicy Bypass -File .\\spark-install.ps1", "ok", 10000);
   }
 }
 
@@ -267,7 +268,7 @@ async function copyText(text, message = "已复制到剪贴板") {
 
 function manualCommand() {
   if (state.os === "win") {
-    return 'cd /d "%USERPROFILE%\\Downloads"\nspark-install.bat';
+    return 'Set-Location "$env:USERPROFILE\\Downloads"\npowershell -NoProfile -ExecutionPolicy Bypass -File .\\spark-install.ps1';
   }
   const file = state.os === "linux" ? "spark-install.sh" : "spark-install.command";
   return `chmod +x ~/Downloads/${file}\n~/Downloads/${file}`;
@@ -304,7 +305,9 @@ function bind() {
     button.addEventListener("click", () => downloadSingle(button.dataset.single));
   });
 
-  $("#btn-copy").addEventListener("click", () => copyText(manualCommand(), "安装命令已复制"));
+  $("#btn-copy").addEventListener("click", () =>
+    copyText(manualCommand(), state.os === "win" ? "安装命令已复制，请粘贴到 PowerShell" : "安装命令已复制"),
+  );
 
   $$(".prompt").forEach((button) => {
     button.addEventListener("click", () => copyText(button.dataset.prompt, "已复制，打开 DSH 后直接粘贴"));

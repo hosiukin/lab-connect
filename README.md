@@ -52,13 +52,15 @@
 
 ### 3. 运行安装脚本
 
-解压后，按系统双击对应文件：
+解压后，按系统运行对应文件：
 
 | 系统 | 文件 | 首次运行注意 |
 | --- | --- | --- |
 | macOS | `spark-install.command` | 右键 → 打开；或在终端 `chmod +x` 后运行 |
-| Windows | `spark-install.bat` | SmartScreen：更多信息 → 仍要运行 |
+| Windows | `spark-install.ps1` | 不要双击；在 PowerShell 中运行 `powershell -NoProfile -ExecutionPolicy Bypass -File .\spark-install.ps1` |
 | Linux | `spark-install.sh` | 终端运行 `bash spark-install.sh` |
+
+Windows 不再生成 `.bat` 或 `.vbs`。安全中心经常直接隔离批处理文件，所以 Windows 入口改成了纯文本 PowerShell 脚本；它不调用 `cmd.exe`，也不使用 Base64 自解压或 VBScript。
 
 脚本会提示输入跳板机和 spark 的密码，用于把公钥追加到服务器。**密码只在 ssh 的交互提示里输入，安装器不会读取或保存。**
 
@@ -74,7 +76,7 @@
 
 ## iPad 访问：用常开的 Windows 电脑做网关
 
-iPadOS 不能运行安装器里的 `.command` / `.bat` / `.sh`，但可以把一台常开的 Windows 电脑当成局域网网关：
+iPadOS 不能运行安装器里的 `.command` / `.ps1` / `.sh`，但可以把一台常开的 Windows 电脑当成局域网网关：
 
 ```text
 iPad Safari ──同一 Wi-Fi──> Windows 10.0.0.50:18091
@@ -98,7 +100,7 @@ iPad Safari ──同一 Wi-Fi──> Windows 10.0.0.50:18091
 powershell -ExecutionPolicy Bypass -File .\spark-ipad-gateway.ps1
 ```
 
-也可以直接双击脚本；脚本发现没有管理员权限时会自动请求 UAC。它会：
+也可以在资源管理器里右键脚本 → **使用 PowerShell 运行**；若双击被记事本打开，就按上面的命令执行。脚本发现没有管理员权限时会自动请求 UAC。它会：
 
 - 用 Windows 自带的 `portproxy` 增加 `0.0.0.0:18091 → 127.0.0.1:18090`；
 - 增加只允许 **本地子网** 的防火墙规则；
@@ -144,6 +146,8 @@ powershell -ExecutionPolicy Bypass -File .\spark-ipad-gateway.ps1 -Remove
 
 自定义跳板链需要你自行确保每一跳都已部署公钥；安装器只部署最后 spark 账号的公钥。
 
+> **实验室其他电脑仍走跳板机**：默认模式就是 EasyConnect + `10.30.24.1`，安装器会把 `ProxyJump` 写进 `~/.ssh/config`。只有在实验室内网且已经能直接路由到 spark 时，才选“直连 spark”；不要因为某台机器曾经直连成功就改掉其他电脑的默认配置。
+
 ## 安装器写了什么
 
 全部在用户目录，不需要管理员权限：
@@ -162,10 +166,8 @@ Windows：
 
 ```text
 %LOCALAPPDATA%\SparkDSH\launch.ps1
-%LOCALAPPDATA%\SparkDSH\launch.vbs
 %LOCALAPPDATA%\SparkDSH\stop-tunnel.ps1
 %LOCALAPPDATA%\SparkDSH\uninstall.ps1
-%LOCALAPPDATA%\SparkDSH\uninstall.bat
 %LOCALAPPDATA%\SparkDSH\spark-dsh.ico
 %LOCALAPPDATA%\SparkDSH\install.log
 %LOCALAPPDATA%\SparkDSH\launcher.log
@@ -224,10 +226,10 @@ macOS / Linux：
 
 它会停止隧道、移除桌面 / 开始菜单入口、删除 `~/.spark-dsh` 和 SSH 配置块，但保留密钥。
 
-Windows：
+Windows（在 PowerShell 中运行，不要双击 `.ps1`）：
 
-```bat
-%LOCALAPPDATA%\SparkDSH\uninstall.bat
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\SparkDSH\uninstall.ps1"
 ```
 
 它会停止隧道、删除桌面和开始菜单快捷方式、移除 `~/.ssh/config` 的受管区块。最后手动删除 `%LOCALAPPDATA%\SparkDSH` 文件夹。卸载**保留密钥**，方便以后重装。
@@ -246,9 +248,16 @@ chmod +x ~/Downloads/spark-install.command
 
 桌面 App 同理。公司 MDM 禁止运行未签名脚本时，需要走管理员白名单。
 
-### Windows 提示 SmartScreen
+### Windows 安装脚本被安全中心拦截
 
-点 **更多信息 → 仍要运行**。安装器是纯文本脚本，可以先用记事本打开检查。若公司策略完全禁止 `.bat`，需要管理员放行，或改用 WSL 里的 Linux 脚本。
+新版安装包不再包含 `.bat` / `.vbs`，Windows 入口是纯文本 `spark-install.ps1`。如果执行策略阻止：
+
+```powershell
+Unblock-File .\spark-install.ps1
+powershell -NoProfile -ExecutionPolicy Bypass -File .\spark-install.ps1
+```
+
+若安全中心直接隔离文件，把 `spark-install.ps1` 加入排除项，或让管理员放行；不要关闭整个防护。只有单位策略完全禁止 PowerShell 脚本时，才考虑 WSL 里的 Linux 脚本。
 
 ### ssh 退出码 255 / 连接超时
 

@@ -29,8 +29,9 @@ export function buildReadme(cfg, generatedAt = new Date()) {
     "",
     "Windows",
     "-".repeat(48),
-    "  1. 解压后双击 spark-install.bat。",
-    "  2. 若出现 SmartScreen：更多信息 → 仍要运行。",
+    "  1. 解压后打开 PowerShell，进入解压目录，运行：",
+    "     powershell -NoProfile -ExecutionPolicy Bypass -File .\\spark-install.ps1",
+    "  2. 不要双击 .ps1（默认会用记事本打开）。",
     "  3. 按提示输入跳板机、spark 账号密码（用于部署公钥）。",
     "  4. 安装完成后桌面出现 “Spark DSH”，以后双击即可。",
     "",
@@ -62,14 +63,16 @@ export function buildReadme(cfg, generatedAt = new Date()) {
     "使用前",
     "-".repeat(48),
     "  · 必须先连接 EasyConnect（直连模式除外）",
+    `  · 实验室其他电脑保持默认跳板机 ${cfg.jumpHost}；不要改成直连`,
     `  · 门户地址：${portalUrl(cfg)}（会话保持 12 小时）`,
     "  · 首次登录使用 spark 的 Linux 用户名和密码",
     "",
     "卸载",
     "-".repeat(48),
     "  macOS / Linux：运行 ~/.spark-dsh/uninstall.sh",
-    "  Windows：运行 %LOCALAPPDATA%\\SparkDSH\\uninstall.bat，",
-    "           再删除 %LOCALAPPDATA%\\SparkDSH 文件夹",
+    "  Windows：在 PowerShell 中运行",
+    "    powershell -NoProfile -ExecutionPolicy Bypass -File \"$env:LOCALAPPDATA\\SparkDSH\\uninstall.ps1\"",
+    "  再删除 %LOCALAPPDATA%\\SparkDSH 文件夹",
     "  卸载会移除 SSH 配置中的受管区块，但保留密钥文件。",
     "",
   ];
@@ -78,11 +81,13 @@ export function buildReadme(cfg, generatedAt = new Date()) {
 
 export function installerFiles(cfg, icons = {}, generatedAt = new Date()) {
   const unix = buildUnixInstaller(cfg, icons);
-  const win = buildWindowsInstaller(cfg, icons).replace(/\r?\n/g, "\r\n");
+  // PowerShell 5.1 treats BOM-less UTF-8 as ANSI; the BOM keeps the Chinese
+  // prompts readable. This is a plain .ps1, with no .bat/.vbs wrapper.
+  const win = "\uFEFF" + buildWindowsInstaller(cfg, icons).replace(/\r?\n/g, "\r\n");
   const files = [
     {name: "spark-install.command", text: unix, mode: 0o755},
     {name: "spark-install.sh", text: unix, mode: 0o755},
-    {name: "spark-install.bat", text: win, mode: 0o644},
+    {name: "spark-install.ps1", text: win, mode: 0o644},
   ];
   const gateway = String(icons.gateway || "").replace(/^\uFEFF/, "").replace(/\r?\n/g, "\r\n");
   if (gateway) {
@@ -100,7 +105,7 @@ export function installerZip(cfg, icons = {}, generatedAt = new Date()) {
 
 export function fileForOs(cfg, icons, os, generatedAt = new Date()) {
   const files = installerFiles(cfg, icons, generatedAt);
-  if (os === "win") return files.find((f) => f.name.endsWith(".bat"));
+  if (os === "win") return files.find((f) => f.name === "spark-install.ps1");
   if (os === "linux") return files.find((f) => f.name.endsWith(".sh"));
   return files.find((f) => f.name.endsWith(".command"));
 }

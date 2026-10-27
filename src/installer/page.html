@@ -58,7 +58,7 @@
 
   <section class="stepper" aria-label="安装流程">
     <div class="step"><span>01</span><div><b>填写连接信息</b><small>跳板机与 spark 账号</small></div></div>
-    <div class="step"><span>02</span><div><b>下载安装包</b><small>解压后双击运行</small></div></div>
+    <div class="step"><span>02</span><div><b>下载安装包</b><small>解压后运行；Windows 用 PowerShell</small></div></div>
     <div class="step"><span>03</span><div><b>输入账号密码</b><small>用于部署公钥</small></div></div>
     <div class="step"><span>04</span><div><b>双击桌面图标</b><small>自动隧道并打开 DSH</small></div></div>
   </section>
@@ -80,7 +80,7 @@
           <button type="button" data-os="win" role="tab" aria-selected="false"><span class="os-icon">⊞</span>Windows</button>
           <button type="button" data-os="linux" role="tab" aria-selected="false"><span class="os-icon">🐧</span>Linux</button>
         </div>
-        <p class="hint" id="os-hint">已自动识别。安装包同时包含三个平台的脚本，下载后按你的系统双击对应文件即可。</p>
+        <p class="hint" id="os-hint">已自动识别。macOS 右键打开；Windows 在 PowerShell 中运行 .ps1；Linux 在终端运行 .sh。</p>
       </fieldset>
 
       <fieldset class="field-group">
@@ -88,7 +88,7 @@
         <div class="mode-grid">
           <label class="mode-card">
             <input type="radio" name="mode" value="jump" checked>
-            <span class="mode-body"><b>EasyConnect + 跳板机</b><small>医院网络的标准方式</small><em>推荐</em></span>
+            <span class="mode-body"><b>EasyConnect + 跳板机</b><small>实验室其他电脑也走 10.30.24.1</small><em>推荐</em></span>
           </label>
           <label class="mode-card">
             <input type="radio" name="mode" value="direct">
@@ -140,7 +140,7 @@
       <div class="single-row">
         <span>只要单文件：</span>
         <button type="button" data-single="mac">macOS .command</button>
-        <button type="button" data-single="win">Windows .bat</button>
+        <button type="button" data-single="win">Windows .ps1</button>
         <button type="button" data-single="linux">Linux .sh</button>
       </div>
       <p class="hint" id="download-hint">推荐下载 zip：解压后仍保留可执行权限。单文件下载后可能需要手动 <code>chmod +x</code>。</p>
@@ -161,7 +161,7 @@
       </div>
       <div class="checklist">
         <p><span>1</span> 先连上 EasyConnect</p>
-        <p><span>2</span> 解压，双击对应脚本</p>
+        <p><span>2</span> 解压，运行对应脚本</p>
         <p><span>3</span> 按提示输入账号密码</p>
         <p><span>4</span> 桌面出现 Spark DSH</p>
       </div>
@@ -238,12 +238,12 @@
     </div>
     <div class="faq-list">
       <details><summary>macOS 提示“无法验证开发者”，或双击没反应</summary><p>在 Finder 里右键安装脚本 →“打开”→ 再点“打开”。如果仍被拦截，到“系统设置 → 隐私与安全性”点“仍要打开”；或在终端执行 <code>xattr -dr com.apple.quarantine ~/Downloads/spark-install.command</code>。桌面 App 同理。</p></details>
-      <details><summary>Windows 出现 SmartScreen“已保护你的电脑”</summary><p>点“更多信息”→“仍要运行”。安装器是纯文本脚本，可先用记事本打开检查。若公司策略完全禁止 .bat，需要管理员放行，或改用 WSL 里的 Linux 脚本。</p></details>
+      <details><summary>Windows 安装脚本被安全中心拦截</summary><p>新版 Windows 入口是纯文本 <code>spark-install.ps1</code>，不再使用容易被安全中心拦截的 <code>.bat</code> 或 <code>.vbs</code>。不要双击 <code>.ps1</code>（默认会用记事本打开）；在 PowerShell 中运行：<code>powershell -NoProfile -ExecutionPolicy Bypass -File .\spark-install.ps1</code>。若执行策略仍拦截，可先 <code>Unblock-File .\spark-install.ps1</code>；若安全中心直接隔离文件，请把该文件加入排除项或让管理员放行，不要关闭整个防护。</p></details>
       <details><summary>提示 ssh 退出码 255 / 连接超时</summary><p>先确认 EasyConnect 已连接，浏览器能打开院内地址；再确认跳板机地址和端口没有变。安装器会把详细日志写到 <code>~/.spark-dsh/launcher.log</code>（Windows 为 <code>%LOCALAPPDATA%\SparkDSH\launcher.log</code>）。</p></details>
       <details><summary>本地端口 18090 被占用</summary><p>macOS / Linux：<code>lsof -nP -iTCP:18090 -sTCP:LISTEN</code>；Windows：<code>netstat -ano | findstr 18090</code>。关掉占用的程序，或在上方把本地端口改成 18091 后重新生成安装包。</p></details>
       <details><summary>公钥部署失败，或提示 Permission denied</summary><p>把安装器显示的 <code>~/.ssh/id_ed25519_spark.pub</code> 内容导入医院门户的 SSH 公钥设置，然后重新运行安装器。安装器不会保存你的密码。</p></details>
       <details><summary>门户要求登录 / 登录后回到登录页</summary><p>用 spark 的 Linux 账号和密码登录，不是工号或邮箱。Cookie 有效期为 12 小时；清除浏览器 Cookie 或换浏览器后需要重新登录。</p></details>
-      <details><summary>怎么停止隧道或卸载</summary><p>macOS / Linux 运行 <code>~/.spark-dsh/uninstall.sh</code>；Windows 运行 <code>%LOCALAPPDATA%\SparkDSH\stop-tunnel.ps1</code>，再删除桌面快捷方式和该文件夹。卸载会移除 <code>~/.ssh/config</code> 中的受管区块，但保留密钥。</p></details>
+      <details><summary>怎么停止隧道或卸载</summary><p>macOS / Linux 运行 <code>~/.spark-dsh/uninstall.sh</code>；Windows 在 PowerShell 中运行 <code>powershell -NoProfile -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\SparkDSH\uninstall.ps1"</code>，再删除桌面快捷方式和该文件夹。卸载会移除 <code>~/.ssh/config</code> 中的受管区块，但保留密钥。</p></details>
       <details><summary>需要管理员权限吗？会上传患者数据吗？</summary><p>不需要管理员权限，全部安装在用户目录。数据始终留在 spark 服务器，本机只建立 SSH 隧道；安装器和启动器都不会把数据发到院外。</p></details>
       <details><summary>iPad 能直接连接吗？</summary><p>iPadOS 不能运行安装脚本。最简单的方式是把一台常开的 Windows 电脑做网关：先正常安装并双击 Spark DSH，再从 ZIP 运行 <code>spark-ipad-gateway.ps1</code>（会自动请求管理员权限），让 iPad 和电脑连同一个 Wi-Fi，用脚本打印的 <code>电脑局域网 IP:18091</code> 访问。脚本只放行本地子网；不要映射到公网。</p></details>
     </div>
