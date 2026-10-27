@@ -58,7 +58,7 @@
 
   <section class="stepper" aria-label="安装流程">
     <div class="step"><span>01</span><div><b>填写连接信息</b><small>跳板机与 spark 账号</small></div></div>
-    <div class="step"><span>02</span><div><b>下载安装包</b><small>解压后运行；Windows 用 PowerShell</small></div></div>
+    <div class="step"><span>02</span><div><b>下载安装包</b><small>解压后双击；Windows 用 exe</small></div></div>
     <div class="step"><span>03</span><div><b>输入账号密码</b><small>用于部署公钥</small></div></div>
     <div class="step"><span>04</span><div><b>双击桌面图标</b><small>自动隧道并打开 DSH</small></div></div>
   </section>
@@ -80,7 +80,7 @@
           <button type="button" data-os="win" role="tab" aria-selected="false"><span class="os-icon">⊞</span>Windows</button>
           <button type="button" data-os="linux" role="tab" aria-selected="false"><span class="os-icon">🐧</span>Linux</button>
         </div>
-        <p class="hint" id="os-hint">已自动识别。macOS 右键打开；Windows 在 PowerShell 中运行 .ps1；Linux 在终端运行 .sh。</p>
+        <p class="hint" id="os-hint">已自动识别。macOS 双击 .command；Windows 双击 .exe；Linux 双击 .desktop。</p>
       </fieldset>
 
       <fieldset class="field-group">
@@ -138,12 +138,14 @@
         <button class="btn btn-ghost" type="button" id="btn-copy" title="复制手动运行命令">复制命令</button>
       </div>
       <div class="single-row">
-        <span>只要单文件：</span>
-        <button type="button" data-single="mac">macOS .command</button>
-        <button type="button" data-single="win">Windows .ps1</button>
-        <button type="button" data-single="linux">Linux .sh</button>
+        <span>按系统下载：</span>
+        <button type="button" data-single="win">Windows .exe</button>
+        <button type="button" data-single="mac">macOS（zip）</button>
+        <button type="button" data-single="linux">Linux（zip）</button>
+        <button type="button" data-single="winps1">Windows .ps1（备用）</button>
+        <button type="button" data-single="linuxsh">Linux .sh（备用）</button>
       </div>
-      <p class="hint" id="download-hint">推荐下载 zip：解压后仍保留可执行权限。单文件下载后可能需要手动 <code>chmod +x</code>。</p>
+      <p class="hint" id="download-hint">Windows 建议下载单文件 .exe；macOS / Linux 建议下载 zip，解压后双击对应入口。未签名的 exe 可能触发 SmartScreen，点“更多信息 → 仍要运行”。</p>
     </form>
 
     <aside class="card side-card">
@@ -238,7 +240,7 @@
     </div>
     <div class="faq-list">
       <details><summary>macOS 提示“无法验证开发者”，或双击没反应</summary><p>在 Finder 里右键安装脚本 →“打开”→ 再点“打开”。如果仍被拦截，到“系统设置 → 隐私与安全性”点“仍要打开”；或在终端执行 <code>xattr -dr com.apple.quarantine ~/Downloads/spark-install.command</code>。桌面 App 同理。</p></details>
-      <details><summary>Windows 安装脚本被安全中心拦截</summary><p>新版 Windows 入口是纯文本 <code>spark-install.ps1</code>，不再使用容易被安全中心拦截的 <code>.bat</code> 或 <code>.vbs</code>。不要双击 <code>.ps1</code>（默认会用记事本打开）；在 PowerShell 中运行：<code>powershell -NoProfile -ExecutionPolicy Bypass -File .\spark-install.ps1</code>。若执行策略仍拦截，可先 <code>Unblock-File .\spark-install.ps1</code>；若安全中心直接隔离文件，请把该文件加入排除项或让管理员放行，不要关闭整个防护。</p></details>
+      <details><summary>Windows 安装包被 SmartScreen / 安全中心拦截</summary><p>推荐下载 <code>spark-install.exe</code>，下载后双击；它是 NSIS 启动器加配置脚本，不使用 <code>.bat</code> / <code>.vbs</code>，也不调用 <code>cmd.exe</code>。exe 未做代码签名，首次运行 SmartScreen 可能提示：点“更多信息 → 仍要运行”。若安全中心直接隔离，请把文件加入排除项或让管理员放行，不要关闭整个防护。备用入口是纯文本 <code>spark-install.ps1</code>：不要双击，在 PowerShell 中运行 <code>powershell -NoProfile -ExecutionPolicy Bypass -File .\spark-install.ps1</code>；执行策略拦截时先 <code>Unblock-File .\spark-install.ps1</code>。</p></details>
       <details><summary>显示“复用已有密钥”，但提示密钥错误</summary><p>新版安装器会校验私钥和 <code>.pub</code>。默认路径下损坏或带口令的旧密钥会先备份为 <code>id_ed25519_spark.bak.&lt;时间&gt;</code>，再自动生成新密钥；只是 <code>.pub</code> 过期则会用私钥重新生成，不覆盖私钥；从别的电脑拷来的密钥如果权限过宽，会先收紧权限再验证。自定义路径不会被擅自覆盖，请改用新路径，或先运行 <code>ssh-keygen -p -N '' -f 你的私钥路径</code> 去掉口令。</p></details>
       <details><summary>提示 ssh 退出码 255 / 连接超时</summary><p>先确认 EasyConnect 已连接，浏览器能打开院内地址；再确认跳板机地址和端口没有变。安装器会把详细日志写到 <code>~/.spark-dsh/launcher.log</code>（Windows 为 <code>%LOCALAPPDATA%\SparkDSH\launcher.log</code>）。</p></details>
       <details><summary>本地端口 18090 被占用</summary><p>macOS / Linux：<code>lsof -nP -iTCP:18090 -sTCP:LISTEN</code>；Windows：<code>netstat -ano | findstr 18090</code>。关掉占用的程序，或在上方把本地端口改成 18091 后重新生成安装包。</p></details>

@@ -23,6 +23,7 @@ MODULES = [
     "config.mjs",
     "unix.mjs",
     "windows.mjs",
+    "exe.mjs",
     "bundle.mjs",
     "ui.mjs",
 ]
@@ -62,6 +63,7 @@ def main() -> None:
     icons = {
         "png": read_asset("spark-dsh-256.png"),
         "ico": read_asset("spark-dsh.ico"),
+        "exe": read_asset("spark-install-stub.exe"),
         "gateway": (ROOT / "tools" / "spark-ipad-gateway.ps1").read_text(encoding="utf-8-sig"),
     }
     build_time = dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat()

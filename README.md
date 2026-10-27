@@ -2,7 +2,7 @@
 
 给实验室新同学的一键安装包：配置一次 SSH，以后在桌面双击 **Spark DSH**，自动建立隧道并打开 spark 服务器上的 DSH。内置数据集和技能已经准备好，打开就能问。
 
-> **直接打开：[install.html](install.html)**（约 200 KB，单文件，离线可用）
+> **直接打开：[install.html](install.html)**（约 450 KB，单文件，离线可用）
 >
 > 这个页面会根据你的系统生成安装脚本，不收集密码；基础安装不需要管理员权限（可选的 iPad 网关需要一次管理员放行）。
 
@@ -48,7 +48,7 @@
 | 本地端口 | `18090` | 被占用时改成 18091 等 |
 | SSH 私钥 | `~/.ssh/id_ed25519_spark` | 不存在会自动生成 |
 
-点 **下载通用安装包**，得到一个 zip；也可以只下载当前系统的单文件。
+点 **下载通用安装包**，得到一个 zip；也可以按系统下载。Windows 推荐直接下载 `.exe`，双击即可，不需要解压或打开 PowerShell；macOS / Linux 下载的 zip 保留了双击执行权限。
 
 ### 3. 运行安装脚本
 
@@ -56,11 +56,13 @@
 
 | 系统 | 文件 | 首次运行注意 |
 | --- | --- | --- |
-| macOS | `spark-install.command` | 右键 → 打开；或在终端 `chmod +x` 后运行 |
-| Windows | `spark-install.ps1` | 不要双击；在 PowerShell 中运行 `powershell -NoProfile -ExecutionPolicy Bypass -File .\spark-install.ps1` |
-| Linux | `spark-install.sh` | 终端运行 `bash spark-install.sh` |
+| macOS | `spark-install.command` | 双击；若被 Gatekeeper 拦截，右键 → 打开 |
+| Windows | `spark-install.exe` | 双击；若 SmartScreen 拦截，点“更多信息 → 仍要运行” |
+| Linux | `spark-install.desktop` | 解压后双击；若提示“不受信任”，右键允许启动 |
+| Windows（备用） | `spark-install.ps1` | 不要双击；在 PowerShell 中运行 `powershell -NoProfile -ExecutionPolicy Bypass -File .\spark-install.ps1` |
+| Linux（备用） | `spark-install.sh` | 终端运行 `bash spark-install.sh` |
 
-Windows 不再生成 `.bat` 或 `.vbs`。安全中心经常直接隔离批处理文件，所以 Windows 入口改成了纯文本 PowerShell 脚本；它不调用 `cmd.exe`，也不使用 Base64 自解压或 VBScript。
+Windows 不再生成 `.bat` 或 `.vbs`。`.exe` 是一个很小的 NSIS 启动器，加上你的配置后生成的 PowerShell 安装内容；它不调用 `cmd.exe`，也不使用批处理或 VBScript。这个 exe 没有代码签名，所以首次运行可能出现 SmartScreen 提示；如果单位安全中心直接隔离，请把文件加入排除项或让管理员放行，不要关闭整个防护。
 
 脚本会提示输入跳板机和 spark 的密码，用于把公钥追加到服务器。**密码只在 ssh 的交互提示里输入，安装器不会读取或保存。**
 
@@ -76,7 +78,7 @@ Windows 不再生成 `.bat` 或 `.vbs`。安全中心经常直接隔离批处理
 
 ## iPad 访问：用常开的 Windows 电脑做网关
 
-iPadOS 不能运行安装器里的 `.command` / `.ps1` / `.sh`，但可以把一台常开的 Windows 电脑当成局域网网关：
+iPadOS 不能运行安装器里的 `.command` / `.exe` / `.ps1` / `.sh`，但可以把一台常开的 Windows 电脑当成局域网网关：
 
 ```text
 iPad Safari ──同一 Wi-Fi──> Windows 10.0.0.50:18091
@@ -248,9 +250,11 @@ chmod +x ~/Downloads/spark-install.command
 
 桌面 App 同理。公司 MDM 禁止运行未签名脚本时，需要走管理员白名单。
 
-### Windows 安装脚本被安全中心拦截
+### Windows 安装包被 SmartScreen / 安全中心拦截
 
-新版安装包不再包含 `.bat` / `.vbs`，Windows 入口是纯文本 `spark-install.ps1`。如果执行策略阻止：
+Windows 入口推荐 `spark-install.exe`（双击），备用是纯文本 `spark-install.ps1`。两者都不再包含 `.bat` / `.vbs`，也不调用 `cmd.exe`。exe 未做代码签名，首次运行 SmartScreen 可能提示：点“更多信息 → 仍要运行”。如果单位安全中心隔离 exe，把文件加入排除项或让管理员放行，不要关闭整个防护。
+
+使用 PS1 备用入口时，如果执行策略阻止：
 
 ```powershell
 Unblock-File .\spark-install.ps1

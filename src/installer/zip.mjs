@@ -133,6 +133,13 @@ export function makeZip(files, date = new Date()) {
   return out;
 }
 
+export function base64ToBytes(value) {
+  const binary = atob(value);
+  const out = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) out[i] = binary.charCodeAt(i);
+  return out;
+}
+
 export function bytesToBase64(bytes) {
   let binary = "";
   const chunk = 0x8000;

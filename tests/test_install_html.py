@@ -23,6 +23,8 @@ class InstallHtmlTest(unittest.TestCase):
         self.assertLess(len(self.text), 500_000)
         self.assertIn('<html lang="zh-CN">', self.text)
         self.assertIn("<title>Spark DSH 安装器", self.text)
+        self.assertIn("spark-install.exe", self.text)
+        self.assertIn("spark-install.desktop", self.text)
         self.assertNotRegex(self.text, r"<script[^>]+src=")
         self.assertNotRegex(self.text, r"<link[^>]+rel=\"stylesheet\"")
         self.assertNotIn("https://", self.text)

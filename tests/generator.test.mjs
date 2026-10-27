@@ -18,6 +18,7 @@ import {
 import {buildUnixInstaller, buildUnixLauncher} from "../src/installer/unix.mjs";
 import {buildWindowsInstaller, buildWindowsLauncher} from "../src/installer/windows.mjs";
 import {installerFiles, installerZip, buildReadme} from "../src/installer/bundle.mjs";
+import {buildWindowsExe, splitWindowsExe} from "../src/installer/exe.mjs";
 import {makeZip, crc32} from "../src/installer/zip.mjs";
 
 const base = {sparkUser: "alice", jumpUser: "alice"};
@@ -176,21 +177,46 @@ test("windows installer is a readable PowerShell script", () => {
   if (!launcherParse.error) assert.equal(launcherParse.status, 0, launcherParse.stderr || launcherParse.stdout);
 });
 
-test("zip bundle: four files, correct modes, UTF-8 readme", () => {
+test("windows single-file exe: stub + configured PS1 payload", () => {
+  const cfg = withDefaults(base);
+  const stub = readFileSync(new URL("../assets/spark-install-stub.exe", import.meta.url)).toString("base64");
+  const exe = buildWindowsExe(stub, buildWindowsInstaller(cfg, {ico: ""}));
+  assert.deepEqual([...exe.subarray(0, 2)], [0x4d, 0x5a]);
+  const footer = new TextDecoder().decode(exe.subarray(-13));
+  assert.match(footer, /^SPRK\d{8}\n$/);
+  const parts = splitWindowsExe(exe);
+  assert.deepEqual([...parts.stub.subarray(0, 2)], [0x4d, 0x5a]);
+  assert.ok(parts.script.startsWith("\uFEFF# Spark DSH Windows installer"));
+  assert.ok(parts.script.includes("\r\n"));
+  assert.doesNotMatch(parts.script, /\.bat\b/i);
+  assert.doesNotMatch(parts.script, /\.vbs\b/i);
+  assert.ok(parts.script.includes("IdentityFile __SPARK_KEY_FILE__"));
+  assert.ok(parts.script.includes("ProxyJump spark-jump"));
+
+  assert.throws(() => buildWindowsExe("", "x"), /missing/i);
+  assert.throws(() => splitWindowsExe(new Uint8Array([0x4d, 0x5a])), /footer|PE/i);
+});
+
+test("zip bundle: five files, correct modes, UTF-8 readme", () => {
   const cfg = withDefaults(base);
   const files = installerFiles(cfg, {png: "", ico: ""}, new Date("2026-01-02T03:04:05Z"));
   assert.deepEqual(files.map((f) => f.name), [
     "spark-install.command",
     "spark-install.sh",
+    "spark-install.desktop",
     "spark-install.ps1",
     "README.txt",
   ]);
   assert.equal(files[0].mode, 0o755);
   assert.equal(files[1].mode, 0o755);
-  assert.equal(files[2].mode, 0o644);
-  assert.ok(files[2].text.startsWith("\uFEFF"));
-  assert.ok(files[2].text.includes("# Spark DSH Windows installer"));
-  const readme = files[3].text;
+  assert.equal(files[2].mode, 0o755);
+  assert.match(files[2].text, /\[Desktop Entry\]/);
+  assert.match(files[2].text, /Terminal=true/);
+  assert.match(files[2].text, /spark-install\.sh/);
+  assert.equal(files[3].mode, 0o644);
+  assert.ok(files[3].text.startsWith("\uFEFF"));
+  assert.ok(files[3].text.includes("# Spark DSH Windows installer"));
+  const readme = files[4].text;
   for (const word of ["macOS", "Windows", "Linux", "iPad", "卸载", "不会收集"]) assert.ok(readme.includes(word));
 
   const zip = installerZip(cfg, {png: "", ico: ""}, new Date("2026-01-02T03:04:05Z"));
@@ -206,7 +232,10 @@ test("zip bundle: four files, correct modes, UTF-8 readme", () => {
   assert.equal(unzip.status, 0, unzip.stderr);
   assert.equal(statSync(join(extract, "spark-install.command")).mode & 0o777, 0o755);
   assert.equal(statSync(join(extract, "spark-install.sh")).mode & 0o777, 0o755);
+  assert.equal(statSync(join(extract, "spark-install.desktop")).mode & 0o777, 0o755);
   assert.equal(statSync(join(extract, "spark-install.ps1")).mode & 0o777, 0o644);
+  const desktopCheck = spawnSync("desktop-file-validate", [join(extract, "spark-install.desktop")], {encoding: "utf8"});
+  if (!desktopCheck.error) assert.equal(desktopCheck.status, 0, desktopCheck.stderr);
   const winScript = readFileSync(join(extract, "spark-install.ps1"));
   assert.deepEqual([...winScript.subarray(0, 3)], [0xef, 0xbb, 0xbf]);
   assert.ok(winScript.toString("utf8").includes("# Spark DSH Windows installer"));
@@ -220,15 +249,16 @@ test("optional iPad gateway is bundled with BOM and CRLF", () => {
   assert.deepEqual(files.map((f) => f.name), [
     "spark-install.command",
     "spark-install.sh",
+    "spark-install.desktop",
     "spark-install.ps1",
     "spark-ipad-gateway.ps1",
     "README.txt",
   ]);
-  const file = files[3];
+  const file = files[4];
   assert.equal(file.mode, 0o644);
   assert.ok(file.text.startsWith("\uFEFF"));
   assert.equal(file.text.slice(1), gateway);
-  assert.ok(files[4].text.includes("spark-ipad-gateway.ps1"));
+  assert.ok(files[5].text.includes("spark-ipad-gateway.ps1"));
 
   const zip = installerZip(cfg, {png: "", ico: "", gateway}, new Date("2026-01-02T03:04:05Z"));
   const dir = mkdtempSync(join(tmpdir(), "spark-gateway-zip-"));

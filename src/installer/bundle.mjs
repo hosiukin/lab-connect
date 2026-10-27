@@ -29,18 +29,19 @@ export function buildReadme(cfg, generatedAt = new Date()) {
     "",
     "Windows",
     "-".repeat(48),
-    "  1. 解压后打开 PowerShell，进入解压目录，运行：",
+    "  推荐：在下载页选择 Windows .exe，下载后双击 spark-install.exe。",
+    "  也可以使用本压缩包里的 PowerShell 脚本：",
     "     powershell -NoProfile -ExecutionPolicy Bypass -File .\\spark-install.ps1",
-    "  2. 不要双击 .ps1（默认会用记事本打开）。",
-    "  3. 按提示输入跳板机、spark 账号密码（用于部署公钥）。",
-    "  4. 安装完成后桌面出现 “Spark DSH”，以后双击即可。",
+    "  不要双击 .ps1（默认会用记事本打开）。",
+    "  按提示输入跳板机、spark 账号密码（用于部署公钥）。",
+    "  安装完成后桌面出现 “Spark DSH”，以后双击即可。",
     "",
     "Linux",
     "-".repeat(48),
-    "  1. 解压后运行：bash spark-install.sh",
-    "  2. 按提示输入跳板机、spark 账号密码（用于部署公钥）。",
-    "  3. 桌面出现 spark-dsh.desktop；双击前如提示“不受信任”，右键允许启动。",
-    "  4. 以后从桌面或应用菜单打开 “Spark DSH”。",
+    "  1. 解压后双击 spark-install.desktop。",
+    "  2. 若提示“不受信任”，右键允许启动；无法双击时运行 bash spark-install.sh。",
+    "  3. 按提示输入跳板机、spark 账号密码（用于部署公钥）。",
+    "  4. 桌面出现 spark-dsh.desktop；以后从桌面或应用菜单打开 “Spark DSH”。",
     "",
     "iPad（可选，Windows 常开电脑做网关）",
     "-".repeat(48),
@@ -79,6 +80,22 @@ export function buildReadme(cfg, generatedAt = new Date()) {
   return lines.join("\r\n");
 }
 
+function linuxDesktopEntry() {
+  return [
+    "[Desktop Entry]",
+    "Version=1.0",
+    "Type=Application",
+    "Name=安装 Spark DSH",
+    "Comment=安装 Spark DSH 并创建桌面启动器",
+    String.raw`Exec=sh -c "cd \"\\$(dirname \"\\$1\")\" && exec bash spark-install.sh" sh "%k"`,
+    "Icon=utilities-terminal",
+    "Terminal=true",
+    "Categories=Utility;",
+    "StartupNotify=false",
+    "",
+  ].join("\n");
+}
+
 export function installerFiles(cfg, icons = {}, generatedAt = new Date()) {
   const unix = buildUnixInstaller(cfg, icons);
   // PowerShell 5.1 treats BOM-less UTF-8 as ANSI; the BOM keeps the Chinese
@@ -87,6 +104,7 @@ export function installerFiles(cfg, icons = {}, generatedAt = new Date()) {
   const files = [
     {name: "spark-install.command", text: unix, mode: 0o755},
     {name: "spark-install.sh", text: unix, mode: 0o755},
+    {name: "spark-install.desktop", text: linuxDesktopEntry(), mode: 0o755},
     {name: "spark-install.ps1", text: win, mode: 0o644},
   ];
   const gateway = String(icons.gateway || "").replace(/^\uFEFF/, "").replace(/\r?\n/g, "\r\n");

@@ -2,6 +2,8 @@
 
 import {withDefaults, validateFields} from "./config.mjs";
 import {installerFiles, installerZip, fileForOs} from "./bundle.mjs";
+import {buildWindowsInstaller} from "./windows.mjs";
+import {buildWindowsExe} from "./exe.mjs";
 
 const BUILD_TIME = "__BUILD_TIME__";
 const STORAGE_KEY = "spark-dsh-installer-v2";
@@ -56,9 +58,9 @@ function setOs(os, remember = true) {
     button.setAttribute("aria-selected", String(button.dataset.os === os));
   });
   const hints = {
-    mac: "将使用 spark-install.command。首次运行请右键 → 打开；或在终端 chmod +x 后运行。",
-    win: "将使用 spark-install.ps1。不要双击；在 PowerShell 里运行：powershell -ExecutionPolicy Bypass -File .\\spark-install.ps1。",
-    linux: "将使用 spark-install.sh。终端运行 bash spark-install.sh 即可。",
+    mac: "将下载 zip；解压后双击 spark-install.command。首次被 Gatekeeper 拦截时右键 → 打开 → 再点“打开”。",
+    win: "将下载 spark-install.exe；下载后双击即可，不需要命令行。",
+    linux: "将下载 zip；解压后双击 spark-install.desktop。若提示“不受信任”，右键允许启动。",
   };
   els.hint.textContent = hints[os];
   if (remember) save();
@@ -221,8 +223,10 @@ function downloadZip() {
   save();
   const zip = installerZip(cfg, ICONS);
   download(zip, "spark-dsh-installer.zip", "application/zip");
-  const entry = state.os === "win" ? "ps1（在 PowerShell 中运行）" : state.os === "linux" ? "sh" : "command";
-  toast("安装包已生成。解压后运行 spark-install." + entry, "ok", 7000);
+  const message = state.os === "win"
+    ? "安装包已生成。Windows 建议单独下载 .exe；zip 里是 .ps1 备用。"
+    : `安装包已生成。解压后双击 ${state.os === "linux" ? "spark-install.desktop" : "spark-install.command"}。`;
+  toast(message, "ok", 7000);
 }
 
 function downloadSingle(os) {
@@ -235,12 +239,38 @@ function downloadSingle(os) {
     return;
   }
   save();
-  const file = fileForOs(cfg, ICONS, os);
+
+  if (os === "linux" || os === "mac") {
+    const zip = installerZip(cfg, ICONS);
+    download(zip, "spark-dsh-installer.zip", "application/zip");
+    toast(
+      os === "linux"
+        ? "已下载 zip。解压后双击 spark-install.desktop；若提示“不受信任”，右键允许启动。"
+        : "已下载 zip。解压后双击 spark-install.command；若被 Gatekeeper 拦截，右键 → 打开。",
+      "ok",
+      10000,
+    );
+    return;
+  }
+
+  if (os === "win") {
+    try {
+      const exe = buildWindowsExe(ICONS.exe, buildWindowsInstaller(cfg, ICONS));
+      download(exe, "spark-install.exe", "application/vnd.microsoft.portable-executable");
+      toast("已下载 spark-install.exe。双击运行；若 SmartScreen 拦截，点“更多信息 → 仍要运行”。", "ok", 10000);
+      return;
+    } catch (error) {
+      // A stale cached page may not have the stub yet; keep the PS1 usable.
+      console.warn("EXE generation failed, falling back to PS1", error);
+    }
+  }
+
+  const file = fileForOs(cfg, ICONS, os === "winps1" ? "win" : os === "linuxsh" ? "linux" : os);
   download(file.text, file.name, "text/plain;charset=utf-8");
-  if (os === "mac" || os === "linux") {
+  if (os === "linuxsh") {
     toast(`已下载 ${file.name}。若双击没反应，先在终端执行：chmod +x ~/Downloads/${file.name}`, "ok", 9000);
   } else {
-    toast("已下载 spark-install.ps1。不要双击；在 PowerShell 中运行：powershell -ExecutionPolicy Bypass -File .\\spark-install.ps1", "ok", 10000);
+    toast("已下载 spark-install.ps1。可改用 .exe 单文件，或在 PowerShell 中运行该脚本。", "ok", 10000);
   }
 }
 
@@ -268,10 +298,12 @@ async function copyText(text, message = "已复制到剪贴板") {
 
 function manualCommand() {
   if (state.os === "win") {
-    return 'Set-Location "$env:USERPROFILE\\Downloads"\npowershell -NoProfile -ExecutionPolicy Bypass -File .\\spark-install.ps1';
+    return 'Set-Location "$env:USERPROFILE\\Downloads"\n.\\spark-install.exe';
   }
-  const file = state.os === "linux" ? "spark-install.sh" : "spark-install.command";
-  return `chmod +x ~/Downloads/${file}\n~/Downloads/${file}`;
+  if (state.os === "linux") {
+    return "cd ~/Downloads\nbash spark-install.sh";
+  }
+  return "cd ~/Downloads\n./spark-install.command";
 }
 
 function bind() {
