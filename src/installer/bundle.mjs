@@ -150,6 +150,31 @@ export function installerLocalBuildZip(cfg, icons = {}, generatedAt = new Date()
   const builder = String(icons.builder || "");
   if (!builder) throw new Error("local build script is missing");
   const kit = buildWindowsBuildKit(cfg, icons, generatedAt);
+  const agentGuide = [
+    "# Spark DSH 本机构建包",
+    "",
+    "用户要求：构建一个可双击安装 Spark DSH 的 exe。",
+    "",
+    "## 直接执行",
+    "",
+    "在**当前目录**运行：",
+    "",
+    "```powershell",
+    "powershell -NoProfile -ExecutionPolicy Bypass -File .\\build-local-installer.ps1",
+    "```",
+    "",
+    "脚本默认读取 `spark-build.json`，生成 `spark-install.exe`。",
+    "",
+    "## 规则",
+    "",
+    "- 不要修改 `spark-build.json` 里的地址、用户名和端口，除非用户明确要求。",
+    "- 不要上传 `spark-build.json`；它含内网地址和用户名，但不含密码或私钥。",
+    "- 不需要联网，不需要安装 NSIS 或 Node。",
+    "- 构建完成后告诉用户：双击 `spark-install.exe`，按提示输入跳板机和 spark 密码；",
+    "  安装完成后桌面会出现 Spark DSH，以后双击它使用。",
+    "- 如果 PowerShell 被执行策略/安全软件拦截，如实报告；不要要求用户关闭整个防护。",
+    "",
+  ].join("\r\n");
   const readme = [
     "Spark DSH 本机构建包",
     "====================",
@@ -177,6 +202,7 @@ export function installerLocalBuildZip(cfg, icons = {}, generatedAt = new Date()
     [
       {name: "spark-build.json", text: JSON.stringify(kit, null, 2) + "\n", mode: 0o644},
       {name: "build-local-installer.ps1", text: "\uFEFF" + builder.replace(/\r?\n/g, "\r\n"), mode: 0o644},
+      {name: "AGENTS.md", text: agentGuide, mode: 0o644},
       {name: "README.txt", text: readme, mode: 0o644},
     ],
     generatedAt,

@@ -66,13 +66,20 @@ spark-local-build.zip
 ```text
 spark-build.json
 build-local-installer.ps1
+AGENTS.md
 README.txt
 ```
 
-3. 把这个 zip 交给另一台电脑上的 agent，在解压目录运行：
+3. 把这个 zip 解压到一个文件夹，让 agent 把工作目录设为该文件夹，然后对它说：
+
+```text
+帮我构建一个 exe，直接打开就可以使用 dsh。
+```
+
+包里的 `AGENTS.md` 会让 agent 在当前目录运行构建脚本；也可以手动运行：
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\build-local-installer.ps1 -Config .\spark-build.json
+powershell -NoProfile -ExecutionPolicy Bypass -File .\build-local-installer.ps1
 ```
 
 4. 目标电脑上会生成 `spark-install.exe`，直接双击安装。

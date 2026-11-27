@@ -146,7 +146,7 @@
         <button type="button" data-single="linux">Linux（zip）</button>
         <button type="button" data-single="linuxsh">Linux .sh（备用）</button>
       </div>
-      <p class="hint">如果另一台电脑有 agent：点 <b>导出构建包</b>，把生成的 zip 交给它；它在目标电脑本地运行 <code>build-local-installer.ps1</code> 生成 exe，不经过网络下载，通常不会带 Windows 的“来自网络”标记。</p>
+      <p class="hint">如果另一台电脑有 agent：点 <b>导出构建包</b>，把 zip 解压到文件夹，让 agent 把工作目录设为该文件夹，然后说“帮我构建一个 exe”。包里的 <code>AGENTS.md</code> 会告诉它怎么构建。</p>
       <p class="hint" id="download-hint">如果 Windows 安全软件把含 exe 的 zip 判为有害文件、导致无法解压，请改用 **Windows 安全包（无 exe）**：解压后右键 `spark-install.ps1` → 使用 PowerShell 运行。含 exe 的包需要 SmartScreen/杀软放行。</p>
     </form>
 

@@ -5,8 +5,7 @@ The JSON contains the configured PowerShell installer and the NSIS stub;
 no executable is transported, so the generated EXE has no network download mark.
 #>
 param(
-  [Parameter(Mandatory = $true)]
-  [string]$Config,
+  [string]$Config = (Join-Path (Get-Location) "spark-build.json"),
   [string]$Out = (Join-Path (Get-Location) "spark-install.exe")
 )
 

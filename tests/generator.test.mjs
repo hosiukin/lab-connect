@@ -262,7 +262,7 @@ test("local build kit is self-contained and produces a PE locally", () => {
   writeFileSync(file, zip);
   const list = spawnSync("unzip", ["-Z1", file], {encoding: "utf8"});
   assert.equal(list.status, 0, list.stderr);
-  assert.deepEqual(list.stdout.trim().split("\n"), ["spark-build.json", "build-local-installer.ps1", "README.txt"]);
+  assert.deepEqual(list.stdout.trim().split("\n"), ["spark-build.json", "build-local-installer.ps1", "AGENTS.md", "README.txt"]);
 
   const extract = join(dir, "out");
   const unzip = spawnSync("unzip", ["-q", file, "-d", extract], {encoding: "utf8"});
@@ -272,6 +272,7 @@ test("local build kit is self-contained and produces a PE locally", () => {
   assert.equal(parsed.config.jumpHost, "10.30.24.1");
   const builderText = readFileSync(join(extract, "build-local-installer.ps1"));
   assert.deepEqual([...builderText.subarray(0, 3)], [0xef, 0xbb, 0xbf]);
+  assert.match(readFileSync(join(extract, "AGENTS.md"), "utf8"), /build-local-installer\.ps1/);
 
   const out = join(extract, "spark-install.exe");
   const build = spawnSync("node", [
