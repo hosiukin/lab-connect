@@ -57,7 +57,7 @@ function setOs(os, remember = true) {
   });
   const hints = {
     mac: "将下载 zip；解压后双击 spark-install.command。首次被 Gatekeeper 拦截时右键 → 打开 → 再点“打开”。",
-    win: "将下载 zip（内含 spark-install.exe）；解压后双击。这样可避开浏览器对 HTTP 直接下载 exe 的拦截。",
+    win: "默认建议无 exe 的 Windows 安全包；含 exe 的 zip 可能被安全软件整包拦截。",
     linux: "将下载 zip；解压后双击 spark-install.desktop。若提示“不受信任”，右键允许启动。",
   };
   els.hint.textContent = hints[os];
@@ -265,8 +265,8 @@ function downloadSingle(os) {
 
   if (os === "winps1") {
     const zip = installerWindowsPs1Zip(cfg, ICONS);
-    download(zip, "spark-install-windows-ps1.zip", "application/zip");
-    toast("已下载 PowerShell 备用包。解压后右键 spark-install.ps1 → 使用 PowerShell 运行。", "ok", 10000);
+    download(zip, "spark-install-windows-safe.zip", "application/zip");
+    toast("已下载无 exe 安全包。解压后右键 spark-install.ps1 → 使用 PowerShell 运行。", "ok", 10000);
     return;
   }
 

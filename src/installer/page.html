@@ -139,13 +139,13 @@
       </div>
       <div class="single-row">
         <span>按系统下载：</span>
-        <button type="button" data-single="win">Windows .exe（zip）</button>
+        <button type="button" data-single="winps1">Windows 安全包（无 exe）</button>
+        <button type="button" data-single="win">Windows .exe（zip，可能被拦截）</button>
         <button type="button" data-single="mac">macOS（zip）</button>
         <button type="button" data-single="linux">Linux（zip）</button>
-        <button type="button" data-single="winps1">Windows .ps1（zip 备用）</button>
         <button type="button" data-single="linuxsh">Linux .sh（备用）</button>
       </div>
-      <p class="hint" id="download-hint">Windows 下载 zip（内含 exe），避免浏览器对 HTTP 直接下载 exe 的拦截；解压后双击。macOS / Linux 下载 zip，解压后双击对应入口。exe 未签名时可能触发 SmartScreen，点“更多信息 → 仍要运行”。</p>
+      <p class="hint" id="download-hint">如果 Windows 安全软件把含 exe 的 zip 判为有害文件、导致无法解压，请改用 **Windows 安全包（无 exe）**：解压后右键 `spark-install.ps1` → 使用 PowerShell 运行。含 exe 的包需要 SmartScreen/杀软放行。</p>
     </form>
 
     <aside class="card side-card">

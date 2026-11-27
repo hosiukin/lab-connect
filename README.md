@@ -48,7 +48,7 @@
 | 本地端口 | `18090` | 被占用时改成 18091 等 |
 | SSH 私钥 | `~/.ssh/id_ed25519_spark` | 不存在会自动生成 |
 
-点 **下载通用安装包**，得到一个 zip；也可以按系统下载。Windows 下载的是 **zip 包装的 exe**（浏览器会对 HTTP 直接下载 exe 做安全拦截），解压后双击；macOS / Linux 下载的 zip 保留了双击执行权限。
+点 **下载通用安装包**，得到一个 zip；也可以按系统下载。Windows 优先用 **Windows 安全包（无 exe）**：解压后右键 `spark-install.ps1` → 使用 PowerShell 运行。含 exe 的 zip 可能被安全软件判为有害文件而无法解压；需要 exe 时再选 `.exe（zip）` 并放行。macOS / Linux 下载的 zip 保留了双击执行权限。
 
 ### 3. 运行安装脚本
 
@@ -57,7 +57,8 @@
 | 系统 | 文件 | 首次运行注意 |
 | --- | --- | --- |
 | macOS | `spark-install.command` | 双击；若被 Gatekeeper 拦截，右键 → 打开 |
-| Windows | `spark-install.exe`（zip 内） | 解压后双击；若 SmartScreen 拦截，点“更多信息 → 仍要运行” |
+| Windows 安全包 | `spark-install.ps1` | 解压后右键 → 使用 PowerShell 运行（无 exe） |
+| Windows（exe） | `spark-install.exe`（zip 内） | 解压后双击；可能被 SmartScreen/安全软件拦截 |
 | Linux | `spark-install.desktop` | 解压后双击；若提示“不受信任”，右键允许启动 |
 | Windows（备用） | `spark-install.ps1` | 解压后右键 → 使用 PowerShell 运行；不要双击 |
 | Linux（备用） | `spark-install.sh` | 终端运行 `bash spark-install.sh` |

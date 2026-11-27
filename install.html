@@ -584,13 +584,13 @@ h2 { margin: 0; font-size: clamp(22px, 2.4vw, 28px); letter-spacing: -0.02em; li
       </div>
       <div class="single-row">
         <span>按系统下载：</span>
-        <button type="button" data-single="win">Windows .exe（zip）</button>
+        <button type="button" data-single="winps1">Windows 安全包（无 exe）</button>
+        <button type="button" data-single="win">Windows .exe（zip，可能被拦截）</button>
         <button type="button" data-single="mac">macOS（zip）</button>
         <button type="button" data-single="linux">Linux（zip）</button>
-        <button type="button" data-single="winps1">Windows .ps1（zip 备用）</button>
         <button type="button" data-single="linuxsh">Linux .sh（备用）</button>
       </div>
-      <p class="hint" id="download-hint">Windows 下载 zip（内含 exe），避免浏览器对 HTTP 直接下载 exe 的拦截；解压后双击。macOS / Linux 下载 zip，解压后双击对应入口。exe 未签名时可能触发 SmartScreen，点“更多信息 → 仍要运行”。</p>
+      <p class="hint" id="download-hint">如果 Windows 安全软件把含 exe 的 zip 判为有害文件、导致无法解压，请改用 **Windows 安全包（无 exe）**：解压后右键 `spark-install.ps1` → 使用 PowerShell 运行。含 exe 的包需要 SmartScreen/杀软放行。</p>
     </form>
 
     <aside class="card side-card">
@@ -2312,7 +2312,7 @@ function fileForOs(cfg, icons, os, generatedAt = new Date()) {
 // Browser UI. Kept DOM-only so the generator modules stay testable in Node.
 
 
-const BUILD_TIME = "2026-11-27T07:05:48+00:00";
+const BUILD_TIME = "2026-11-27T07:20:48+00:00";
 const STORAGE_KEY = "spark-dsh-installer-v2";
 const ICONS = globalThis.SPARK_ICONS || {};
 
@@ -2366,7 +2366,7 @@ function setOs(os, remember = true) {
   });
   const hints = {
     mac: "将下载 zip；解压后双击 spark-install.command。首次被 Gatekeeper 拦截时右键 → 打开 → 再点“打开”。",
-    win: "将下载 zip（内含 spark-install.exe）；解压后双击。这样可避开浏览器对 HTTP 直接下载 exe 的拦截。",
+    win: "默认建议无 exe 的 Windows 安全包；含 exe 的 zip 可能被安全软件整包拦截。",
     linux: "将下载 zip；解压后双击 spark-install.desktop。若提示“不受信任”，右键允许启动。",
   };
   els.hint.textContent = hints[os];
@@ -2574,8 +2574,8 @@ function downloadSingle(os) {
 
   if (os === "winps1") {
     const zip = installerWindowsPs1Zip(cfg, ICONS);
-    download(zip, "spark-install-windows-ps1.zip", "application/zip");
-    toast("已下载 PowerShell 备用包。解压后右键 spark-install.ps1 → 使用 PowerShell 运行。", "ok", 10000);
+    download(zip, "spark-install-windows-safe.zip", "application/zip");
+    toast("已下载无 exe 安全包。解压后右键 spark-install.ps1 → 使用 PowerShell 运行。", "ok", 10000);
     return;
   }
 
