@@ -12,14 +12,14 @@ Unicode true
   !define OUTFILE "assets/spark-install-stub.exe"
 !endif
 
-Name "Spark DSH Installer"
+Name "Spark DSH Installer v3"
 OutFile "${OUTFILE}"
 Icon "..\assets\spark-dsh.ico"
 RequestExecutionLevel user
 SilentInstall silent
 SetCompressor zlib
 ShowInstDetails nevershow
-BrandingText "Spark DSH"
+BrandingText "Spark DSH v3"
 
 VIProductVersion "2.0.0.0"
 VIAddVersionKey "ProductName" "Spark DSH Installer"
@@ -102,7 +102,7 @@ too_big_error:
 
 no_payload_error:
   FileClose $0
-  MessageBox MB_ICONSTOP|MB_OK "This installer is missing its payload. Please download it again."
+  MessageBox MB_ICONSTOP|MB_OK "Spark DSH v3: this installer is missing its payload. Please rebuild it from the latest build kit."
   SetErrorLevel 3
   Goto install_done
 
