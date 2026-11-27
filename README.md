@@ -288,6 +288,10 @@ chmod +x ~/Downloads/spark-install.command
 
 桌面 App 同理。公司 MDM 禁止运行未签名脚本时，需要走管理员白名单。
 
+### 双击 exe 提示“missing its payload”
+
+旧版 NSIS 启动器把 `FileRead` 读到的行尾 LF 也算进长度，13 字节页脚校验失败。新版已改为截取 12 字节后再解析。重新导出构建包并重新生成 `spark-install.exe`，不要继续使用旧文件。
+
 ### Windows 安装包被 SmartScreen / 安全中心拦截
 
 Windows 入口是 zip 里的 `spark-install.exe`（解压后双击），备用是同一 zip 里的纯文本 `spark-install.ps1`（右键 → 使用 PowerShell 运行）。两者都不再包含 `.bat` / `.vbs`，也不调用 `cmd.exe`。exe 未做代码签名，首次运行 SmartScreen 可能提示：点“更多信息 → 仍要运行”。如果单位安全中心隔离 exe，把文件加入排除项或让管理员放行，不要关闭整个防护。

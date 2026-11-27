@@ -36,28 +36,25 @@ Section "Install"
 powershell_ready:
   FileOpen $0 "$EXEPATH" r
   IfErrors no_payload_error
-  FileSeek $0 0 END $R0
-  IntCmp $R0 13 too_small too_small payload_size_ok
-
-payload_size_ok:
-  IntOp $R1 $R0 - 13
-  FileSeek $0 $R1 SET
+  ; Read the last 13 bytes as a line. Some NSIS builds include the trailing
+  ; LF in FileRead output; truncating to 12 makes this tolerant of both.
+  FileSeek $0 -13 END
   FileRead $0 $R2
+  IfErrors no_payload_error
+  StrCpy $R2 $R2 12
   StrLen $R3 $R2
   StrCmp $R3 12 0 no_payload_error
   StrCpy $R4 $R2 4
   StrCmp $R4 "SPRK" 0 no_payload_error
   StrCpy $R5 $R2 8 4
   IntOp $R5 $R5 + 0
-  IntCmp $R5 0 no_payload_error too_big_error payload_size_ok2
+  IntCmp $R5 0 no_payload_error too_big_error payload_size_ok
 
-payload_size_ok2:
-  IntOp $R6 $R0 - 13
-  IntCmp $R5 $R6 payload_offset_ok no_payload_error too_big_error
-
-payload_offset_ok:
-  IntOp $R6 $R6 - $R5
-  FileSeek $0 $R6 SET
+payload_size_ok:
+  ; The payload starts just before the 13-byte footer.
+  FileSeek $0 -13 END
+  IntOp $R6 0 - $R5
+  FileSeek $0 $R6 CUR
   StrCpy $R1 "$TEMP\SparkDSH-spark-install.ps1"
   Delete "$R1"
   FileOpen $1 "$R1" w
@@ -85,10 +82,6 @@ install_failed:
   MessageBox MB_ICONSTOP|MB_OK "Spark DSH installation failed (exit code $R9).$\r$\nSee %LOCALAPPDATA%\SparkDSH\install.log for details."
   SetErrorLevel $R9
   Goto install_done
-
-too_small:
-  FileClose $0
-  Goto no_payload_error
 
 too_big_error:
   FileClose $0

@@ -185,6 +185,13 @@ test("windows installer is a readable PowerShell script", () => {
   if (!launcherParse.error) assert.equal(launcherParse.status, 0, launcherParse.stderr || launcherParse.stdout);
 });
 
+test("NSIS stub strips the newline that FileRead includes", () => {
+  const nsi = readFileSync(new URL("../tools/spark-install-stub.nsi", import.meta.url), "utf8");
+  assert.match(nsi, /FileSeek \$0 -13 END/);
+  assert.match(nsi, /StrCpy \$R2 \$R2 12/);
+  assert.match(nsi, /FileSeek \$0 \$R6 CUR/);
+});
+
 test("windows single-file exe: stub + configured PS1 payload", () => {
   const cfg = withDefaults(base);
   const stub = readFileSync(new URL("../assets/spark-install-stub.exe", import.meta.url)).toString("base64");
