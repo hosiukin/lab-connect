@@ -125,18 +125,72 @@ export function installerZip(cfg, icons = {}, generatedAt = new Date()) {
   return makeZip(installerFiles(cfg, icons, generatedAt), generatedAt);
 }
 
+function windowsScript(cfg, icons) {
+  return buildWindowsInstaller(cfg, icons).replace(/\r?\n/g, "\r\n");
+}
+
 function windowsPs1(cfg, icons) {
-  return "\uFEFF" + buildWindowsInstaller(cfg, icons).replace(/\r?\n/g, "\r\n");
+  return "\uFEFF" + windowsScript(cfg, icons);
+}
+
+export function buildWindowsBuildKit(cfg, icons = {}, generatedAt = new Date()) {
+  if (!icons.exe) throw new Error("Windows stub is missing");
+  return {
+    schema: "spark-dsh-local-build/v1",
+    generatedAt: generatedAt.toISOString(),
+    config: {...cfg},
+    windows: {
+      stub: String(icons.exe),
+      script: windowsScript(cfg, icons),
+    },
+  };
+}
+
+export function installerLocalBuildZip(cfg, icons = {}, generatedAt = new Date()) {
+  const builder = String(icons.builder || "");
+  if (!builder) throw new Error("local build script is missing");
+  const kit = buildWindowsBuildKit(cfg, icons, generatedAt);
+  const readme = [
+    "Spark DSH 本机构建包",
+    "====================",
+    "",
+    "这个包不含 exe，只包含配置、预编译启动器数据和构建脚本。",
+    "请把整个文件夹交给另一台电脑上的 agent，或按下面步骤自己执行：",
+    "",
+    "  1. 解压；",
+    "  2. 在解压目录打开 PowerShell；",
+    "  3. 运行：",
+    "     powershell -NoProfile -ExecutionPolicy Bypass -File .\\build-local-installer.ps1 -Config .\\spark-build.json",
+    "  4. 生成的 spark-install.exe 在本机生成，不带网络下载标记；",
+    "  5. 双击 spark-install.exe 完成安装。",
+    "",
+    "配置摘要：",
+    ...summaryLines(cfg).map((line) => "  " + line),
+    "",
+    "如果 PowerShell 被策略拦截，请把报错原文交给管理员或 agent。",
+    "",
+    "注意：生成的 exe 仍然没有代码签名；本机生成通常不会带 MOTW，",
+    "但安全软件是否放行仍取决于本机策略。",
+    "",
+  ].join("\r\n");
+  return makeZip(
+    [
+      {name: "spark-build.json", text: JSON.stringify(kit, null, 2) + "\n", mode: 0o644},
+      {name: "build-local-installer.ps1", text: "\uFEFF" + builder.replace(/\r?\n/g, "\r\n"), mode: 0o644},
+      {name: "README.txt", text: readme, mode: 0o644},
+    ],
+    generatedAt,
+  );
 }
 
 export function installerWindowsZip(cfg, icons = {}, generatedAt = new Date()) {
   if (!icons.exe) throw new Error("Windows stub is missing");
-  const script = buildWindowsInstaller(cfg, icons);
+  const script = windowsScript(cfg, icons);
   const exe = buildWindowsExe(icons.exe, script);
   return makeZip(
     [
       {name: "spark-install.exe", bytes: exe, mode: 0o755},
-      {name: "spark-install.ps1", text: "\uFEFF" + script.replace(/\r?\n/g, "\r\n"), mode: 0o644},
+      {name: "spark-install.ps1", text: "\uFEFF" + script, mode: 0o644},
       {name: "README.txt", text: buildReadme(cfg, generatedAt), mode: 0o644},
     ],
     generatedAt,

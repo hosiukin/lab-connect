@@ -1,7 +1,7 @@
 // Browser UI. Kept DOM-only so the generator modules stay testable in Node.
 
 import {withDefaults, validateFields} from "./config.mjs";
-import {installerZip, installerWindowsZip, installerWindowsPs1Zip, fileForOs} from "./bundle.mjs";
+import {installerZip, installerWindowsZip, installerWindowsPs1Zip, installerLocalBuildZip, fileForOs} from "./bundle.mjs";
 
 const BUILD_TIME = "__BUILD_TIME__";
 const STORAGE_KEY = "spark-dsh-installer-v2";
@@ -227,6 +227,26 @@ function downloadZip() {
   toast(message, "ok", 7000);
 }
 
+function downloadLocalBuild() {
+  const { cfg, result } = render();
+  if (!result.ok) {
+    state.showErrors = true;
+    render();
+    els.errors.scrollIntoView({ behavior: "smooth", block: "center" });
+    toast("请先补全连接信息。", "err");
+    return;
+  }
+  save();
+  try {
+    const zip = installerLocalBuildZip(cfg, ICONS);
+    download(zip, "spark-local-build.zip", "application/zip");
+    toast("已导出本机构建包。把它交给另一台电脑的 agent，运行 build-local-installer.ps1 生成 exe。", "ok", 12000);
+  } catch (error) {
+    console.warn("local build kit generation failed", error);
+    toast("导出失败，请刷新页面后重试。", "err");
+  }
+}
+
 function downloadSingle(os) {
   const { cfg, result } = render();
   if (!result.ok) {
@@ -341,6 +361,8 @@ function bind() {
   $$("[data-single]").forEach((button) => {
     button.addEventListener("click", () => downloadSingle(button.dataset.single));
   });
+
+  $("#btn-export-build").addEventListener("click", downloadLocalBuild);
 
   $("#btn-copy").addEventListener("click", () =>
     copyText(manualCommand(), state.os === "win" ? "安装命令已复制，请粘贴到 PowerShell" : "安装命令已复制"),

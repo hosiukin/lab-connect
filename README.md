@@ -50,7 +50,42 @@
 
 点 **下载通用安装包**，得到一个 zip；也可以按系统下载。Windows 优先用 **Windows 安全包（无 exe）**：解压后右键 `spark-install.ps1` → 使用 PowerShell 运行。含 exe 的 zip 可能被安全软件判为有害文件而无法解压；需要 exe 时再选 `.exe（zip）` 并放行。macOS / Linux 下载的 zip 保留了双击执行权限。
 
-### 3. 运行安装脚本
+### 3. 在另一台电脑上本机构建（给 agent 用）
+
+如果目标电脑的安全软件会拦截“压缩包里的 exe”，可以让页面只导出**配置和构建脚本**，由目标电脑上的 agent 在本地生成 exe。这样传输包里没有 exe，生成出来的文件也不带网络下载标记。
+
+1. 在当前电脑的页面填好设置；
+2. 点 **导出构建包**，得到：
+
+```text
+spark-local-build.zip
+```
+
+里面只有：
+
+```text
+spark-build.json
+build-local-installer.ps1
+README.txt
+```
+
+3. 把这个 zip 交给另一台电脑上的 agent，在解压目录运行：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\build-local-installer.ps1 -Config .\spark-build.json
+```
+
+4. 目标电脑上会生成 `spark-install.exe`，直接双击安装。
+
+如果 agent 拿到的是完整项目源码，也可以用 Node 构建：
+
+```bash
+node tools/build-local-installer.mjs --config spark-build.json --out spark-install.exe
+```
+
+`spark-build.json` 只包含地址、用户名、端口、密钥路径等设置，**不包含密码，也不包含私钥**。生成的 exe 仍然没有代码签名；本机构建通常可以避开“来自网络”标记/SmartScreen，但安全软件是否放行仍取决于目标电脑的策略。
+
+### 4. 运行安装脚本
 
 解压后，按系统运行对应文件：
 
@@ -67,7 +102,7 @@ Windows 不再生成 `.bat` 或 `.vbs`。页面把 `.exe` 放进 zip，避免浏
 
 脚本会提示输入跳板机和 spark 的密码，用于把公钥追加到服务器。**密码只在 ssh 的交互提示里输入，安装器不会读取或保存。**
 
-### 4. 双击桌面图标
+### 5. 双击桌面图标
 
 安装完成后桌面出现 **Spark DSH**：
 

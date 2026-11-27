@@ -17,7 +17,15 @@ import {
 } from "../src/installer/config.mjs";
 import {buildUnixInstaller, buildUnixLauncher} from "../src/installer/unix.mjs";
 import {buildWindowsInstaller, buildWindowsLauncher} from "../src/installer/windows.mjs";
-import {installerFiles, installerZip, installerWindowsZip, installerWindowsPs1Zip, buildReadme} from "../src/installer/bundle.mjs";
+import {
+  installerFiles,
+  installerZip,
+  installerWindowsZip,
+  installerWindowsPs1Zip,
+  installerLocalBuildZip,
+  buildWindowsBuildKit,
+  buildReadme,
+} from "../src/installer/bundle.mjs";
 import {buildWindowsExe, splitWindowsExe} from "../src/installer/exe.mjs";
 import {makeZip, crc32} from "../src/installer/zip.mjs";
 
@@ -234,6 +242,51 @@ test("windows PS1 fallback zip has no exe and a readable script", () => {
   const ps1 = readFileSync(join(extract, "spark-install.ps1"));
   assert.deepEqual([...ps1.subarray(0, 3)], [0xef, 0xbb, 0xbf]);
   assert.ok(ps1.toString("utf8").includes("IdentityFile __SPARK_KEY_FILE__"));
+});
+
+test("local build kit is self-contained and produces a PE locally", () => {
+  const cfg = withDefaults(base);
+  const stub = readFileSync(new URL("../assets/spark-install-stub.exe", import.meta.url)).toString("base64");
+  const builder = readFileSync(new URL("../tools/build-local-installer.ps1", import.meta.url), "utf8");
+  const kit = buildWindowsBuildKit(cfg, {exe: stub, ico: "", builder}, new Date("2026-01-02T03:04:05Z"));
+  assert.equal(kit.schema, "spark-dsh-local-build/v1");
+  assert.equal(kit.config.sparkUser, "alice");
+  assert.ok(!("password" in kit));
+  assert.ok(!kit.windows.script.startsWith("\uFEFF"));
+  assert.ok(kit.windows.script.includes("\r\n"));
+  assert.ok(kit.windows.script.includes("IdentityFile __SPARK_KEY_FILE__"));
+
+  const zip = installerLocalBuildZip(cfg, {exe: stub, ico: "", builder}, new Date("2026-01-02T03:04:05Z"));
+  const dir = mkdtempSync(join(tmpdir(), "spark-localbuild-"));
+  const file = join(dir, "spark-local-build.zip");
+  writeFileSync(file, zip);
+  const list = spawnSync("unzip", ["-Z1", file], {encoding: "utf8"});
+  assert.equal(list.status, 0, list.stderr);
+  assert.deepEqual(list.stdout.trim().split("\n"), ["spark-build.json", "build-local-installer.ps1", "README.txt"]);
+
+  const extract = join(dir, "out");
+  const unzip = spawnSync("unzip", ["-q", file, "-d", extract], {encoding: "utf8"});
+  assert.equal(unzip.status, 0, unzip.stderr);
+  const parsed = JSON.parse(readFileSync(join(extract, "spark-build.json"), "utf8"));
+  assert.equal(parsed.schema, "spark-dsh-local-build/v1");
+  assert.equal(parsed.config.jumpHost, "10.30.24.1");
+  const builderText = readFileSync(join(extract, "build-local-installer.ps1"));
+  assert.deepEqual([...builderText.subarray(0, 3)], [0xef, 0xbb, 0xbf]);
+
+  const out = join(extract, "spark-install.exe");
+  const build = spawnSync("node", [
+    new URL("../tools/build-local-installer.mjs", import.meta.url).pathname,
+    "--config",
+    join(extract, "spark-build.json"),
+    "--out",
+    out,
+  ], {encoding: "utf8"});
+  assert.equal(build.status, 0, build.stderr || build.stdout);
+  const exe = readFileSync(out);
+  assert.deepEqual([...exe.subarray(0, 2)], [0x4d, 0x5a]);
+  assert.match(new TextDecoder().decode(exe.subarray(-13)), /^SPRK\d{8}\n$/);
+  const ps1 = readFileSync(join(extract, "spark-install.ps1"));
+  assert.deepEqual([...ps1.subarray(0, 3)], [0xef, 0xbb, 0xbf]);
 });
 
 test("zip bundle: five files, correct modes, UTF-8 readme", () => {
