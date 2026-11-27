@@ -65,7 +65,6 @@ spark-local-build.zip
 
 ```text
 spark-build.json
-build-local-installer.ps1
 AGENTS.md
 README.txt
 ```
@@ -76,15 +75,11 @@ README.txt
 帮我构建一个 exe，直接打开就可以使用 dsh。
 ```
 
-包里的 `AGENTS.md` 会让 agent 在当前目录运行构建脚本；也可以手动运行：
-
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\build-local-installer.ps1
-```
+包里的 `AGENTS.md` 会告诉 agent 如何用 Node 或 Python 直接生成 exe。这个包**不含 PowerShell 构建脚本**，避免 `.ps1` 被安全软件单独拦截。
 
 4. 目标电脑上会生成 `spark-install.exe`，直接双击安装。
 
-如果 agent 拿到的是完整项目源码，也可以用 Node 构建：
+如果 agent 拿到的是完整项目源码，也可以直接用仓库里的 Node 构建器：
 
 ```bash
 node tools/build-local-installer.mjs --config spark-build.json --out spark-install.exe

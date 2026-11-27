@@ -240,7 +240,7 @@ function downloadLocalBuild() {
   try {
     const zip = installerLocalBuildZip(cfg, ICONS);
     download(zip, "spark-local-build.zip", "application/zip");
-    toast("已导出本机构建包。把它交给另一台电脑的 agent，运行 build-local-installer.ps1 生成 exe。", "ok", 12000);
+    toast("已导出本机构建包。把它交给另一台电脑的 agent，按 AGENTS.md 用 Node/Python 生成 exe。", "ok", 12000);
   } catch (error) {
     console.warn("local build kit generation failed", error);
     toast("导出失败，请刷新页面后重试。", "err");

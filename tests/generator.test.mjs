@@ -247,8 +247,7 @@ test("windows PS1 fallback zip has no exe and a readable script", () => {
 test("local build kit is self-contained and produces a PE locally", () => {
   const cfg = withDefaults(base);
   const stub = readFileSync(new URL("../assets/spark-install-stub.exe", import.meta.url)).toString("base64");
-  const builder = readFileSync(new URL("../tools/build-local-installer.ps1", import.meta.url), "utf8");
-  const kit = buildWindowsBuildKit(cfg, {exe: stub, ico: "", builder}, new Date("2026-01-02T03:04:05Z"));
+  const kit = buildWindowsBuildKit(cfg, {exe: stub, ico: ""}, new Date("2026-01-02T03:04:05Z"));
   assert.equal(kit.schema, "spark-dsh-local-build/v1");
   assert.equal(kit.config.sparkUser, "alice");
   assert.ok(!("password" in kit));
@@ -256,13 +255,13 @@ test("local build kit is self-contained and produces a PE locally", () => {
   assert.ok(kit.windows.script.includes("\r\n"));
   assert.ok(kit.windows.script.includes("IdentityFile __SPARK_KEY_FILE__"));
 
-  const zip = installerLocalBuildZip(cfg, {exe: stub, ico: "", builder}, new Date("2026-01-02T03:04:05Z"));
+  const zip = installerLocalBuildZip(cfg, {exe: stub, ico: ""}, new Date("2026-01-02T03:04:05Z"));
   const dir = mkdtempSync(join(tmpdir(), "spark-localbuild-"));
   const file = join(dir, "spark-local-build.zip");
   writeFileSync(file, zip);
   const list = spawnSync("unzip", ["-Z1", file], {encoding: "utf8"});
   assert.equal(list.status, 0, list.stderr);
-  assert.deepEqual(list.stdout.trim().split("\n"), ["spark-build.json", "build-local-installer.ps1", "AGENTS.md", "README.txt"]);
+  assert.deepEqual(list.stdout.trim().split("\n"), ["spark-build.json", "AGENTS.md", "README.txt"]);
 
   const extract = join(dir, "out");
   const unzip = spawnSync("unzip", ["-q", file, "-d", extract], {encoding: "utf8"});
@@ -270,9 +269,10 @@ test("local build kit is self-contained and produces a PE locally", () => {
   const parsed = JSON.parse(readFileSync(join(extract, "spark-build.json"), "utf8"));
   assert.equal(parsed.schema, "spark-dsh-local-build/v1");
   assert.equal(parsed.config.jumpHost, "10.30.24.1");
-  const builderText = readFileSync(join(extract, "build-local-installer.ps1"));
-  assert.deepEqual([...builderText.subarray(0, 3)], [0xef, 0xbb, 0xbf]);
-  assert.match(readFileSync(join(extract, "AGENTS.md"), "utf8"), /build-local-installer\.ps1/);
+  const guide = readFileSync(join(extract, "AGENTS.md"), "utf8");
+  assert.match(guide, /spark-install\.exe/);
+  assert.match(guide, /windows\.stub/);
+  assert.doesNotMatch(guide, /build-local-installer\.ps1/);
 
   const out = join(extract, "spark-install.exe");
   const build = spawnSync("node", [
