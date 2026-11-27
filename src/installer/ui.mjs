@@ -1,9 +1,7 @@
 // Browser UI. Kept DOM-only so the generator modules stay testable in Node.
 
 import {withDefaults, validateFields} from "./config.mjs";
-import {installerFiles, installerZip, fileForOs} from "./bundle.mjs";
-import {buildWindowsInstaller} from "./windows.mjs";
-import {buildWindowsExe} from "./exe.mjs";
+import {installerZip, installerWindowsZip, installerWindowsPs1Zip, fileForOs} from "./bundle.mjs";
 
 const BUILD_TIME = "__BUILD_TIME__";
 const STORAGE_KEY = "spark-dsh-installer-v2";
@@ -59,7 +57,7 @@ function setOs(os, remember = true) {
   });
   const hints = {
     mac: "将下载 zip；解压后双击 spark-install.command。首次被 Gatekeeper 拦截时右键 → 打开 → 再点“打开”。",
-    win: "将下载 spark-install.exe；下载后双击即可，不需要命令行。",
+    win: "将下载 zip（内含 spark-install.exe）；解压后双击。这样可避开浏览器对 HTTP 直接下载 exe 的拦截。",
     linux: "将下载 zip；解压后双击 spark-install.desktop。若提示“不受信任”，右键允许启动。",
   };
   els.hint.textContent = hints[os];
@@ -255,14 +253,21 @@ function downloadSingle(os) {
 
   if (os === "win") {
     try {
-      const exe = buildWindowsExe(ICONS.exe, buildWindowsInstaller(cfg, ICONS));
-      download(exe, "spark-install.exe", "application/vnd.microsoft.portable-executable");
-      toast("已下载 spark-install.exe。双击运行；若 SmartScreen 拦截，点“更多信息 → 仍要运行”。", "ok", 10000);
+      const zip = installerWindowsZip(cfg, ICONS);
+      download(zip, "spark-install-windows.zip", "application/zip");
+      toast("已下载 zip。解压后双击 spark-install.exe；若 SmartScreen 拦截，点“更多信息 → 仍要运行”。", "ok", 10000);
       return;
     } catch (error) {
-      // A stale cached page may not have the stub yet; keep the PS1 usable.
-      console.warn("EXE generation failed, falling back to PS1", error);
+      // Keep the readable PS1 usable if a stale page lacks the Windows stub.
+      console.warn("Windows ZIP generation failed, falling back to PS1", error);
     }
+  }
+
+  if (os === "winps1") {
+    const zip = installerWindowsPs1Zip(cfg, ICONS);
+    download(zip, "spark-install-windows-ps1.zip", "application/zip");
+    toast("已下载 PowerShell 备用包。解压后右键 spark-install.ps1 → 使用 PowerShell 运行。", "ok", 10000);
+    return;
   }
 
   const file = fileForOs(cfg, ICONS, os === "winps1" ? "win" : os === "linuxsh" ? "linux" : os);

@@ -80,7 +80,7 @@
           <button type="button" data-os="win" role="tab" aria-selected="false"><span class="os-icon">⊞</span>Windows</button>
           <button type="button" data-os="linux" role="tab" aria-selected="false"><span class="os-icon">🐧</span>Linux</button>
         </div>
-        <p class="hint" id="os-hint">已自动识别。macOS 双击 .command；Windows 双击 .exe；Linux 双击 .desktop。</p>
+        <p class="hint" id="os-hint">已自动识别。macOS 双击 .command；Windows 解压后双击 .exe；Linux 解压后双击 .desktop。</p>
       </fieldset>
 
       <fieldset class="field-group">
@@ -139,13 +139,13 @@
       </div>
       <div class="single-row">
         <span>按系统下载：</span>
-        <button type="button" data-single="win">Windows .exe</button>
+        <button type="button" data-single="win">Windows .exe（zip）</button>
         <button type="button" data-single="mac">macOS（zip）</button>
         <button type="button" data-single="linux">Linux（zip）</button>
-        <button type="button" data-single="winps1">Windows .ps1（备用）</button>
+        <button type="button" data-single="winps1">Windows .ps1（zip 备用）</button>
         <button type="button" data-single="linuxsh">Linux .sh（备用）</button>
       </div>
-      <p class="hint" id="download-hint">Windows 建议下载单文件 .exe；macOS / Linux 建议下载 zip，解压后双击对应入口。未签名的 exe 可能触发 SmartScreen，点“更多信息 → 仍要运行”。</p>
+      <p class="hint" id="download-hint">Windows 下载 zip（内含 exe），避免浏览器对 HTTP 直接下载 exe 的拦截；解压后双击。macOS / Linux 下载 zip，解压后双击对应入口。exe 未签名时可能触发 SmartScreen，点“更多信息 → 仍要运行”。</p>
     </form>
 
     <aside class="card side-card">
@@ -240,7 +240,7 @@
     </div>
     <div class="faq-list">
       <details><summary>macOS 提示“无法验证开发者”，或双击没反应</summary><p>在 Finder 里右键安装脚本 →“打开”→ 再点“打开”。如果仍被拦截，到“系统设置 → 隐私与安全性”点“仍要打开”；或在终端执行 <code>xattr -dr com.apple.quarantine ~/Downloads/spark-install.command</code>。桌面 App 同理。</p></details>
-      <details><summary>Windows 安装包被 SmartScreen / 安全中心拦截</summary><p>推荐下载 <code>spark-install.exe</code>，下载后双击；它是 NSIS 启动器加配置脚本，不使用 <code>.bat</code> / <code>.vbs</code>，也不调用 <code>cmd.exe</code>。exe 未做代码签名，首次运行 SmartScreen 可能提示：点“更多信息 → 仍要运行”。若安全中心直接隔离，请把文件加入排除项或让管理员放行，不要关闭整个防护。备用入口是纯文本 <code>spark-install.ps1</code>：不要双击，在 PowerShell 中运行 <code>powershell -NoProfile -ExecutionPolicy Bypass -File .\spark-install.ps1</code>；执行策略拦截时先 <code>Unblock-File .\spark-install.ps1</code>。</p></details>
+      <details><summary>Windows 安装包被 SmartScreen / 安全中心拦截</summary><p>Windows 下载 zip，解压后双击 <code>spark-install.exe</code>；它是 NSIS 启动器加配置脚本，不使用 <code>.bat</code> / <code>.vbs</code>，也不调用 <code>cmd.exe</code>。exe 未做代码签名，首次运行 SmartScreen 可能提示：点“更多信息 → 仍要运行”。若安全中心直接隔离，请把文件加入排除项或让管理员放行，不要关闭整个防护。备用入口是同 zip 里的纯文本 <code>spark-install.ps1</code>：右键 → 使用 PowerShell 运行；或在 PowerShell 中运行 <code>powershell -NoProfile -ExecutionPolicy Bypass -File .\spark-install.ps1</code>。执行策略拦截时先 <code>Unblock-File .\spark-install.ps1</code>。</p></details>
       <details><summary>显示“复用已有密钥”，但提示密钥错误</summary><p>新版安装器会校验私钥和 <code>.pub</code>。默认路径下损坏或带口令的旧密钥会先备份为 <code>id_ed25519_spark.bak.&lt;时间&gt;</code>，再自动生成新密钥；只是 <code>.pub</code> 过期则会用私钥重新生成，不覆盖私钥；从别的电脑拷来的密钥如果权限过宽，会先收紧权限再验证。自定义路径不会被擅自覆盖，请改用新路径，或先运行 <code>ssh-keygen -p -N '' -f 你的私钥路径</code> 去掉口令。</p></details>
       <details><summary>提示 ssh 退出码 255 / 连接超时</summary><p>先确认 EasyConnect 已连接，浏览器能打开院内地址；再确认跳板机地址和端口没有变。安装器会把详细日志写到 <code>~/.spark-dsh/launcher.log</code>（Windows 为 <code>%LOCALAPPDATA%\SparkDSH\launcher.log</code>）。</p></details>
       <details><summary>本地端口 18090 被占用</summary><p>macOS / Linux：<code>lsof -nP -iTCP:18090 -sTCP:LISTEN</code>；Windows：<code>netstat -ano | findstr 18090</code>。关掉占用的程序，或在上方把本地端口改成 18091 后重新生成安装包。</p></details>

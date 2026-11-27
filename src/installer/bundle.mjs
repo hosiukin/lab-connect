@@ -3,6 +3,7 @@
 import {makeZip} from "./zip.mjs";
 import {buildUnixInstaller} from "./unix.mjs";
 import {buildWindowsInstaller} from "./windows.mjs";
+import {buildWindowsExe} from "./exe.mjs";
 import {portalUrl, summaryLines} from "./config.mjs";
 
 export function buildReadme(cfg, generatedAt = new Date()) {
@@ -29,9 +30,12 @@ export function buildReadme(cfg, generatedAt = new Date()) {
     "",
     "Windows",
     "-".repeat(48),
-    "  推荐：在下载页选择 Windows .exe，下载后双击 spark-install.exe。",
+    "  推荐：在下载页选择 Windows .exe（zip），解压后双击 spark-install.exe。",
     "  也可以使用本压缩包里的 PowerShell 脚本：",
     "     powershell -NoProfile -ExecutionPolicy Bypass -File .\\spark-install.ps1",
+    "  如果 exe 被 SmartScreen / 安全中心拦截：",
+    "    右键 spark-install.ps1 → 使用 PowerShell 运行；",
+    "    或先 Unblock-File，再运行上面的命令。",
     "  不要双击 .ps1（默认会用记事本打开）。",
     "  按提示输入跳板机、spark 账号密码（用于部署公钥）。",
     "  安装完成后桌面出现 “Spark DSH”，以后双击即可。",
@@ -119,6 +123,34 @@ export function installerFiles(cfg, icons = {}, generatedAt = new Date()) {
 
 export function installerZip(cfg, icons = {}, generatedAt = new Date()) {
   return makeZip(installerFiles(cfg, icons, generatedAt), generatedAt);
+}
+
+function windowsPs1(cfg, icons) {
+  return "\uFEFF" + buildWindowsInstaller(cfg, icons).replace(/\r?\n/g, "\r\n");
+}
+
+export function installerWindowsZip(cfg, icons = {}, generatedAt = new Date()) {
+  if (!icons.exe) throw new Error("Windows stub is missing");
+  const script = buildWindowsInstaller(cfg, icons);
+  const exe = buildWindowsExe(icons.exe, script);
+  return makeZip(
+    [
+      {name: "spark-install.exe", bytes: exe, mode: 0o755},
+      {name: "spark-install.ps1", text: "\uFEFF" + script.replace(/\r?\n/g, "\r\n"), mode: 0o644},
+      {name: "README.txt", text: buildReadme(cfg, generatedAt), mode: 0o644},
+    ],
+    generatedAt,
+  );
+}
+
+export function installerWindowsPs1Zip(cfg, icons = {}, generatedAt = new Date()) {
+  return makeZip(
+    [
+      {name: "spark-install.ps1", text: windowsPs1(cfg, icons), mode: 0o644},
+      {name: "README.txt", text: buildReadme(cfg, generatedAt), mode: 0o644},
+    ],
+    generatedAt,
+  );
 }
 
 export function fileForOs(cfg, icons, os, generatedAt = new Date()) {

@@ -59,7 +59,7 @@ class Writer {
 }
 
 /**
- * @param {{name: string, text: string, mode?: number}[]} files
+ * @param {{name: string, text?: string, bytes?: Uint8Array, mode?: number}[]} files
  * @param {Date} [date]
  * @returns {Uint8Array}
  */
@@ -72,7 +72,7 @@ export function makeZip(files, date = new Date()) {
 
   for (const file of files) {
     const name = encoder.encode(file.name);
-    const data = encoder.encode(file.text);
+    const data = file.bytes ?? encoder.encode(file.text ?? "");
     const crc = crc32(data);
     const mode = (file.mode ?? 0o644) & 0xffff;
     const offset = local.length;

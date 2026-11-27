@@ -48,7 +48,7 @@
 | 本地端口 | `18090` | 被占用时改成 18091 等 |
 | SSH 私钥 | `~/.ssh/id_ed25519_spark` | 不存在会自动生成 |
 
-点 **下载通用安装包**，得到一个 zip；也可以按系统下载。Windows 推荐直接下载 `.exe`，双击即可，不需要解压或打开 PowerShell；macOS / Linux 下载的 zip 保留了双击执行权限。
+点 **下载通用安装包**，得到一个 zip；也可以按系统下载。Windows 下载的是 **zip 包装的 exe**（浏览器会对 HTTP 直接下载 exe 做安全拦截），解压后双击；macOS / Linux 下载的 zip 保留了双击执行权限。
 
 ### 3. 运行安装脚本
 
@@ -57,12 +57,12 @@
 | 系统 | 文件 | 首次运行注意 |
 | --- | --- | --- |
 | macOS | `spark-install.command` | 双击；若被 Gatekeeper 拦截，右键 → 打开 |
-| Windows | `spark-install.exe` | 双击；若 SmartScreen 拦截，点“更多信息 → 仍要运行” |
+| Windows | `spark-install.exe`（zip 内） | 解压后双击；若 SmartScreen 拦截，点“更多信息 → 仍要运行” |
 | Linux | `spark-install.desktop` | 解压后双击；若提示“不受信任”，右键允许启动 |
-| Windows（备用） | `spark-install.ps1` | 不要双击；在 PowerShell 中运行 `powershell -NoProfile -ExecutionPolicy Bypass -File .\spark-install.ps1` |
+| Windows（备用） | `spark-install.ps1` | 解压后右键 → 使用 PowerShell 运行；不要双击 |
 | Linux（备用） | `spark-install.sh` | 终端运行 `bash spark-install.sh` |
 
-Windows 不再生成 `.bat` 或 `.vbs`。`.exe` 是一个很小的 NSIS 启动器，加上你的配置后生成的 PowerShell 安装内容；它不调用 `cmd.exe`，也不使用批处理或 VBScript。这个 exe 没有代码签名，所以首次运行可能出现 SmartScreen 提示；如果单位安全中心直接隔离，请把文件加入排除项或让管理员放行，不要关闭整个防护。
+Windows 不再生成 `.bat` 或 `.vbs`。页面把 `.exe` 放进 zip，避免浏览器把 HTTP 页面直接下载的 exe 当作不安全下载拦截。`.exe` 本身是一个很小的 NSIS 启动器，加上你的配置后生成的 PowerShell 安装内容；它不调用 `cmd.exe`，也不使用批处理或 VBScript。这个 exe 没有代码签名，所以首次运行可能出现 SmartScreen 提示；如果单位安全中心直接隔离，请把文件加入排除项或让管理员放行，不要关闭整个防护。
 
 脚本会提示输入跳板机和 spark 的密码，用于把公钥追加到服务器。**密码只在 ssh 的交互提示里输入，安装器不会读取或保存。**
 
@@ -252,7 +252,7 @@ chmod +x ~/Downloads/spark-install.command
 
 ### Windows 安装包被 SmartScreen / 安全中心拦截
 
-Windows 入口推荐 `spark-install.exe`（双击），备用是纯文本 `spark-install.ps1`。两者都不再包含 `.bat` / `.vbs`，也不调用 `cmd.exe`。exe 未做代码签名，首次运行 SmartScreen 可能提示：点“更多信息 → 仍要运行”。如果单位安全中心隔离 exe，把文件加入排除项或让管理员放行，不要关闭整个防护。
+Windows 入口是 zip 里的 `spark-install.exe`（解压后双击），备用是同一 zip 里的纯文本 `spark-install.ps1`（右键 → 使用 PowerShell 运行）。两者都不再包含 `.bat` / `.vbs`，也不调用 `cmd.exe`。exe 未做代码签名，首次运行 SmartScreen 可能提示：点“更多信息 → 仍要运行”。如果单位安全中心隔离 exe，把文件加入排除项或让管理员放行，不要关闭整个防护。
 
 使用 PS1 备用入口时，如果执行策略阻止：
 

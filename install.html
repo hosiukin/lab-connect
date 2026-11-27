@@ -525,7 +525,7 @@ h2 { margin: 0; font-size: clamp(22px, 2.4vw, 28px); letter-spacing: -0.02em; li
           <button type="button" data-os="win" role="tab" aria-selected="false"><span class="os-icon">⊞</span>Windows</button>
           <button type="button" data-os="linux" role="tab" aria-selected="false"><span class="os-icon">🐧</span>Linux</button>
         </div>
-        <p class="hint" id="os-hint">已自动识别。macOS 双击 .command；Windows 双击 .exe；Linux 双击 .desktop。</p>
+        <p class="hint" id="os-hint">已自动识别。macOS 双击 .command；Windows 解压后双击 .exe；Linux 解压后双击 .desktop。</p>
       </fieldset>
 
       <fieldset class="field-group">
@@ -584,13 +584,13 @@ h2 { margin: 0; font-size: clamp(22px, 2.4vw, 28px); letter-spacing: -0.02em; li
       </div>
       <div class="single-row">
         <span>按系统下载：</span>
-        <button type="button" data-single="win">Windows .exe</button>
+        <button type="button" data-single="win">Windows .exe（zip）</button>
         <button type="button" data-single="mac">macOS（zip）</button>
         <button type="button" data-single="linux">Linux（zip）</button>
-        <button type="button" data-single="winps1">Windows .ps1（备用）</button>
+        <button type="button" data-single="winps1">Windows .ps1（zip 备用）</button>
         <button type="button" data-single="linuxsh">Linux .sh（备用）</button>
       </div>
-      <p class="hint" id="download-hint">Windows 建议下载单文件 .exe；macOS / Linux 建议下载 zip，解压后双击对应入口。未签名的 exe 可能触发 SmartScreen，点“更多信息 → 仍要运行”。</p>
+      <p class="hint" id="download-hint">Windows 下载 zip（内含 exe），避免浏览器对 HTTP 直接下载 exe 的拦截；解压后双击。macOS / Linux 下载 zip，解压后双击对应入口。exe 未签名时可能触发 SmartScreen，点“更多信息 → 仍要运行”。</p>
     </form>
 
     <aside class="card side-card">
@@ -685,7 +685,7 @@ h2 { margin: 0; font-size: clamp(22px, 2.4vw, 28px); letter-spacing: -0.02em; li
     </div>
     <div class="faq-list">
       <details><summary>macOS 提示“无法验证开发者”，或双击没反应</summary><p>在 Finder 里右键安装脚本 →“打开”→ 再点“打开”。如果仍被拦截，到“系统设置 → 隐私与安全性”点“仍要打开”；或在终端执行 <code>xattr -dr com.apple.quarantine ~/Downloads/spark-install.command</code>。桌面 App 同理。</p></details>
-      <details><summary>Windows 安装包被 SmartScreen / 安全中心拦截</summary><p>推荐下载 <code>spark-install.exe</code>，下载后双击；它是 NSIS 启动器加配置脚本，不使用 <code>.bat</code> / <code>.vbs</code>，也不调用 <code>cmd.exe</code>。exe 未做代码签名，首次运行 SmartScreen 可能提示：点“更多信息 → 仍要运行”。若安全中心直接隔离，请把文件加入排除项或让管理员放行，不要关闭整个防护。备用入口是纯文本 <code>spark-install.ps1</code>：不要双击，在 PowerShell 中运行 <code>powershell -NoProfile -ExecutionPolicy Bypass -File .\spark-install.ps1</code>；执行策略拦截时先 <code>Unblock-File .\spark-install.ps1</code>。</p></details>
+      <details><summary>Windows 安装包被 SmartScreen / 安全中心拦截</summary><p>Windows 下载 zip，解压后双击 <code>spark-install.exe</code>；它是 NSIS 启动器加配置脚本，不使用 <code>.bat</code> / <code>.vbs</code>，也不调用 <code>cmd.exe</code>。exe 未做代码签名，首次运行 SmartScreen 可能提示：点“更多信息 → 仍要运行”。若安全中心直接隔离，请把文件加入排除项或让管理员放行，不要关闭整个防护。备用入口是同 zip 里的纯文本 <code>spark-install.ps1</code>：右键 → 使用 PowerShell 运行；或在 PowerShell 中运行 <code>powershell -NoProfile -ExecutionPolicy Bypass -File .\spark-install.ps1</code>。执行策略拦截时先 <code>Unblock-File .\spark-install.ps1</code>。</p></details>
       <details><summary>显示“复用已有密钥”，但提示密钥错误</summary><p>新版安装器会校验私钥和 <code>.pub</code>。默认路径下损坏或带口令的旧密钥会先备份为 <code>id_ed25519_spark.bak.&lt;时间&gt;</code>，再自动生成新密钥；只是 <code>.pub</code> 过期则会用私钥重新生成，不覆盖私钥；从别的电脑拷来的密钥如果权限过宽，会先收紧权限再验证。自定义路径不会被擅自覆盖，请改用新路径，或先运行 <code>ssh-keygen -p -N '' -f 你的私钥路径</code> 去掉口令。</p></details>
       <details><summary>提示 ssh 退出码 255 / 连接超时</summary><p>先确认 EasyConnect 已连接，浏览器能打开院内地址；再确认跳板机地址和端口没有变。安装器会把详细日志写到 <code>~/.spark-dsh/launcher.log</code>（Windows 为 <code>%LOCALAPPDATA%\SparkDSH\launcher.log</code>）。</p></details>
       <details><summary>本地端口 18090 被占用</summary><p>macOS / Linux：<code>lsof -nP -iTCP:18090 -sTCP:LISTEN</code>；Windows：<code>netstat -ano | findstr 18090</code>。关掉占用的程序，或在上方把本地端口改成 18091 后重新生成安装包。</p></details>
@@ -779,7 +779,7 @@ class Writer {
 }
 
 /**
- * @param {{name: string, text: string, mode?: number}[]} files
+ * @param {{name: string, text?: string, bytes?: Uint8Array, mode?: number}[]} files
  * @param {Date} [date]
  * @returns {Uint8Array}
  */
@@ -792,7 +792,7 @@ function makeZip(files, date = new Date()) {
 
   for (const file of files) {
     const name = encoder.encode(file.name);
-    const data = encoder.encode(file.text);
+    const data = file.bytes ?? encoder.encode(file.text ?? "");
     const crc = crc32(data);
     const mode = (file.mode ?? 0o644) & 0xffff;
     const offset = local.length;
@@ -2178,9 +2178,12 @@ function buildReadme(cfg, generatedAt = new Date()) {
     "",
     "Windows",
     "-".repeat(48),
-    "  推荐：在下载页选择 Windows .exe，下载后双击 spark-install.exe。",
+    "  推荐：在下载页选择 Windows .exe（zip），解压后双击 spark-install.exe。",
     "  也可以使用本压缩包里的 PowerShell 脚本：",
     "     powershell -NoProfile -ExecutionPolicy Bypass -File .\\spark-install.ps1",
+    "  如果 exe 被 SmartScreen / 安全中心拦截：",
+    "    右键 spark-install.ps1 → 使用 PowerShell 运行；",
+    "    或先 Unblock-File，再运行上面的命令。",
     "  不要双击 .ps1（默认会用记事本打开）。",
     "  按提示输入跳板机、spark 账号密码（用于部署公钥）。",
     "  安装完成后桌面出现 “Spark DSH”，以后双击即可。",
@@ -2270,6 +2273,34 @@ function installerZip(cfg, icons = {}, generatedAt = new Date()) {
   return makeZip(installerFiles(cfg, icons, generatedAt), generatedAt);
 }
 
+function windowsPs1(cfg, icons) {
+  return "\uFEFF" + buildWindowsInstaller(cfg, icons).replace(/\r?\n/g, "\r\n");
+}
+
+function installerWindowsZip(cfg, icons = {}, generatedAt = new Date()) {
+  if (!icons.exe) throw new Error("Windows stub is missing");
+  const script = buildWindowsInstaller(cfg, icons);
+  const exe = buildWindowsExe(icons.exe, script);
+  return makeZip(
+    [
+      {name: "spark-install.exe", bytes: exe, mode: 0o755},
+      {name: "spark-install.ps1", text: "\uFEFF" + script.replace(/\r?\n/g, "\r\n"), mode: 0o644},
+      {name: "README.txt", text: buildReadme(cfg, generatedAt), mode: 0o644},
+    ],
+    generatedAt,
+  );
+}
+
+function installerWindowsPs1Zip(cfg, icons = {}, generatedAt = new Date()) {
+  return makeZip(
+    [
+      {name: "spark-install.ps1", text: windowsPs1(cfg, icons), mode: 0o644},
+      {name: "README.txt", text: buildReadme(cfg, generatedAt), mode: 0o644},
+    ],
+    generatedAt,
+  );
+}
+
 function fileForOs(cfg, icons, os, generatedAt = new Date()) {
   const files = installerFiles(cfg, icons, generatedAt);
   if (os === "win") return files.find((f) => f.name === "spark-install.ps1");
@@ -2281,7 +2312,7 @@ function fileForOs(cfg, icons, os, generatedAt = new Date()) {
 // Browser UI. Kept DOM-only so the generator modules stay testable in Node.
 
 
-const BUILD_TIME = "2026-10-27T09:07:46+00:00";
+const BUILD_TIME = "2026-11-27T07:05:48+00:00";
 const STORAGE_KEY = "spark-dsh-installer-v2";
 const ICONS = globalThis.SPARK_ICONS || {};
 
@@ -2335,7 +2366,7 @@ function setOs(os, remember = true) {
   });
   const hints = {
     mac: "将下载 zip；解压后双击 spark-install.command。首次被 Gatekeeper 拦截时右键 → 打开 → 再点“打开”。",
-    win: "将下载 spark-install.exe；下载后双击即可，不需要命令行。",
+    win: "将下载 zip（内含 spark-install.exe）；解压后双击。这样可避开浏览器对 HTTP 直接下载 exe 的拦截。",
     linux: "将下载 zip；解压后双击 spark-install.desktop。若提示“不受信任”，右键允许启动。",
   };
   els.hint.textContent = hints[os];
@@ -2531,14 +2562,21 @@ function downloadSingle(os) {
 
   if (os === "win") {
     try {
-      const exe = buildWindowsExe(ICONS.exe, buildWindowsInstaller(cfg, ICONS));
-      download(exe, "spark-install.exe", "application/vnd.microsoft.portable-executable");
-      toast("已下载 spark-install.exe。双击运行；若 SmartScreen 拦截，点“更多信息 → 仍要运行”。", "ok", 10000);
+      const zip = installerWindowsZip(cfg, ICONS);
+      download(zip, "spark-install-windows.zip", "application/zip");
+      toast("已下载 zip。解压后双击 spark-install.exe；若 SmartScreen 拦截，点“更多信息 → 仍要运行”。", "ok", 10000);
       return;
     } catch (error) {
-      // A stale cached page may not have the stub yet; keep the PS1 usable.
-      console.warn("EXE generation failed, falling back to PS1", error);
+      // Keep the readable PS1 usable if a stale page lacks the Windows stub.
+      console.warn("Windows ZIP generation failed, falling back to PS1", error);
     }
+  }
+
+  if (os === "winps1") {
+    const zip = installerWindowsPs1Zip(cfg, ICONS);
+    download(zip, "spark-install-windows-ps1.zip", "application/zip");
+    toast("已下载 PowerShell 备用包。解压后右键 spark-install.ps1 → 使用 PowerShell 运行。", "ok", 10000);
+    return;
   }
 
   const file = fileForOs(cfg, ICONS, os === "winps1" ? "win" : os === "linuxsh" ? "linux" : os);

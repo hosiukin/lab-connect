@@ -17,7 +17,7 @@ import {
 } from "../src/installer/config.mjs";
 import {buildUnixInstaller, buildUnixLauncher} from "../src/installer/unix.mjs";
 import {buildWindowsInstaller, buildWindowsLauncher} from "../src/installer/windows.mjs";
-import {installerFiles, installerZip, buildReadme} from "../src/installer/bundle.mjs";
+import {installerFiles, installerZip, installerWindowsZip, installerWindowsPs1Zip, buildReadme} from "../src/installer/bundle.mjs";
 import {buildWindowsExe, splitWindowsExe} from "../src/installer/exe.mjs";
 import {makeZip, crc32} from "../src/installer/zip.mjs";
 
@@ -195,6 +195,45 @@ test("windows single-file exe: stub + configured PS1 payload", () => {
 
   assert.throws(() => buildWindowsExe("", "x"), /missing/i);
   assert.throws(() => splitWindowsExe(new Uint8Array([0x4d, 0x5a])), /footer|PE/i);
+});
+
+test("windows zip wrapper contains the exe and a PS1 fallback", () => {
+  const cfg = withDefaults(base);
+  const stub = readFileSync(new URL("../assets/spark-install-stub.exe", import.meta.url)).toString("base64");
+  const zip = installerWindowsZip(cfg, {exe: stub, ico: ""}, new Date("2026-01-02T03:04:05Z"));
+  const dir = mkdtempSync(join(tmpdir(), "spark-winzip-"));
+  const file = join(dir, "spark-install-windows.zip");
+  writeFileSync(file, zip);
+  const list = spawnSync("unzip", ["-Z1", file], {encoding: "utf8"});
+  assert.equal(list.status, 0, list.stderr);
+  assert.deepEqual(list.stdout.trim().split("\n"), ["spark-install.exe", "spark-install.ps1", "README.txt"]);
+
+  const extract = join(dir, "out");
+  const unzip = spawnSync("unzip", ["-q", file, "-d", extract], {encoding: "utf8"});
+  assert.equal(unzip.status, 0, unzip.stderr);
+  const exe = readFileSync(join(extract, "spark-install.exe"));
+  assert.deepEqual([...exe.subarray(0, 2)], [0x4d, 0x5a]);
+  assert.match(new TextDecoder().decode(exe.subarray(-13)), /^SPRK\d{8}\n$/);
+  const ps1 = readFileSync(join(extract, "spark-install.ps1"));
+  assert.deepEqual([...ps1.subarray(0, 3)], [0xef, 0xbb, 0xbf]);
+  assert.ok(ps1.toString("utf8").includes("IdentityFile __SPARK_KEY_FILE__"));
+});
+
+test("windows PS1 fallback zip has no exe and a readable script", () => {
+  const cfg = withDefaults(base);
+  const zip = installerWindowsPs1Zip(cfg, {ico: ""}, new Date("2026-01-02T03:04:05Z"));
+  const dir = mkdtempSync(join(tmpdir(), "spark-winps1zip-"));
+  const file = join(dir, "spark-install-windows-ps1.zip");
+  writeFileSync(file, zip);
+  const list = spawnSync("unzip", ["-Z1", file], {encoding: "utf8"});
+  assert.equal(list.status, 0, list.stderr);
+  assert.deepEqual(list.stdout.trim().split("\n"), ["spark-install.ps1", "README.txt"]);
+  const extract = join(dir, "out");
+  const unzip = spawnSync("unzip", ["-q", file, "-d", extract], {encoding: "utf8"});
+  assert.equal(unzip.status, 0, unzip.stderr);
+  const ps1 = readFileSync(join(extract, "spark-install.ps1"));
+  assert.deepEqual([...ps1.subarray(0, 3)], [0xef, 0xbb, 0xbf]);
+  assert.ok(ps1.toString("utf8").includes("IdentityFile __SPARK_KEY_FILE__"));
 });
 
 test("zip bundle: five files, correct modes, UTF-8 readme", () => {
