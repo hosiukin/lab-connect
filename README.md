@@ -290,7 +290,7 @@ chmod +x ~/Downloads/spark-install.command
 
 ### 双击 exe 提示“missing its payload”
 
-旧版 NSIS 启动器把 `FileRead` 读到的行尾 LF 也算进长度，13 字节页脚校验失败。新版已改为截取 12 字节后再解析。重新导出构建包并重新生成 `spark-install.exe`，不要继续使用旧文件。
+旧版 NSIS 启动器用 `FileRead` 读页脚，行尾 LF 会混进长度，13 字节页脚校验失败。新版改为按字节读取页脚，不再依赖行读取。重新导出构建包并重新生成 `spark-install.exe`，不要继续使用旧文件。
 
 ### Windows 安装包被 SmartScreen / 安全中心拦截
 
