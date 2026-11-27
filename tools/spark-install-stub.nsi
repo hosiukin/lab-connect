@@ -37,11 +37,8 @@ powershell_ready:
   ClearErrors
   FileOpen $0 "$EXEPATH" r
   IfErrors no_payload_error
-  FileSeek $0 0 END $R0
-  IntCmp $R0 13 no_payload_error no_payload_error payload_footer
-payload_footer:
-  IntOp $R1 $R0 - 13
-  FileSeek $0 $R1 SET
+  FileSeek $0 -13 END
+  IfErrors no_payload_error
   ; Read the 13-byte footer as raw bytes. FileRead stops at LF and includes
   ; the newline in some NSIS versions, so do not use it for the footer.
   StrCpy $R2 ""
@@ -49,7 +46,6 @@ payload_footer:
 footer_loop:
   IntCmp $R8 13 footer_done
   FileReadByte $0 $R9
-  IfErrors no_payload_error
   IntFmt $R9 "%c" $R9
   StrCpy $R2 "$R2$R9"
   IntOp $R8 $R8 + 1
@@ -65,12 +61,11 @@ footer_done:
   IntCmp $R5 0 no_payload_error too_big_error payload_size_ok
 
 payload_size_ok:
-  IntOp $R6 $R0 - 13
-  IntOp $R6 $R6 - $R5
-  IntCmp $R6 0 no_payload_error payload_offset_ok payload_offset_ok
-
-payload_offset_ok:
-  FileSeek $0 $R6 SET
+  ; Go back to the start of the footer, then back by payload length.
+  FileSeek $0 -13 END
+  IntOp $R6 0 - $R5
+  FileSeek $0 $R6 CUR
+  IfErrors no_payload_error
   StrCpy $R1 "$TEMP\SparkDSH-spark-install.ps1"
   Delete "$R1"
   FileOpen $1 "$R1" w
